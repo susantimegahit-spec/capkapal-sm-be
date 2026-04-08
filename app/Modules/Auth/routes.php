@@ -10,14 +10,6 @@ Route::prefix('auth')->group(function () {
   Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
   Route::post('reset-password',  [AuthController::class, 'resetPassword']);
   Route::get('verify-email/{token}', [AuthController::class, 'verifyEmail']);
-    Route::get('/debug-token', function () {
-        $token = request()->bearerToken();
-
-        return [
-            'token' => $token,
-            'found' => \Laravel\Sanctum\PersonalAccessToken::findToken($token),
-        ];
-    });
 });
 
 // Protected auth routes

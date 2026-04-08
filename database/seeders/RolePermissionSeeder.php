@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
-use Spatie\Permission\Models\{Role, Permission};
+use App\Modules\Auth\Models\{Role, Permission};
 
 class RolePermissionSeeder extends Seeder
 {
@@ -30,27 +30,27 @@ class RolePermissionSeeder extends Seeder
             'admin.dashboard', 'admin.reports', 'admin.settings',
         ];
 
+        // Pastikan guard_name diset ke 'api' (sesuai dengan model User Anda)
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate([
-                'id'   => Str::uuid(),
-                'name' => $permission,
-                'guard_name' => 'sanctum'
-            ]);
+            Permission::firstOrCreate(
+                ['name' => $permission, 'guard_name' => 'api'],
+                ['id' => Str::uuid()]
+            );
         }
 
-        // Roles
-        $admin  = Role::firstOrCreate(['id' => Str::uuid(), 'name' => 'admin',       'guard_name' => 'sanctum']);
-        $editor = Role::firstOrCreate(['id' => Str::uuid(), 'name' => 'editor',      'guard_name' => 'sanctum']);
-        $agen   = Role::firstOrCreate(['id' => Str::uuid(), 'name' => 'agen',        'guard_name' => 'sanctum']);
-        $dist   = Role::firstOrCreate(['id' => Str::uuid(), 'name' => 'user',        'guard_name' => 'sanctum']);
+        // Roles dengan guard_name 'api'
+        $admin  = Role::firstOrCreate(['name' => 'admin',  'guard_name' => 'api'], ['id' => Str::uuid()]);
+        $editor = Role::firstOrCreate(['name' => 'editor', 'guard_name' => 'api'], ['id' => Str::uuid()]);
+        $agen   = Role::firstOrCreate(['name' => 'agen',   'guard_name' => 'api'], ['id' => Str::uuid()]);
+        $user   = Role::firstOrCreate(['name' => 'user',   'guard_name' => 'api'], ['id' => Str::uuid()]);
 
-        // Cannot use syncPermissions() because it doesn't work with UUIDs', assign all roles to admin
-//        $admin->syncPermissions(Permission::all());
+        // Trik UUID: Gunakan array berisi string nama permission, bukan object modelnya
+        $admin->syncPermissions(Permission::pluck('name')->toArray());
 
-//        $editor->syncPermissions([
-//            'cms.view', 'cms.create', 'cms.edit', 'cms.publish',
-//            'products.view', 'promos.view', 'admin.dashboard',
-//        ]);
+        $editor->syncPermissions([
+            'cms.view', 'cms.create', 'cms.edit', 'cms.publish',
+            'products.view', 'promos.view', 'admin.dashboard',
+        ]);
 
         $this->command->info('Roles and permissions seeded!');
     }

@@ -11,6 +11,7 @@ use App\Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\{Hash, Password};
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Arr;
 
 class AuthService
 {
@@ -150,8 +151,8 @@ class AuthService
 
   public function updateProfile(User $user, array $data): User
   {
-    $userData    = array_filter(array_only($data, ['name', 'phone', 'avatar']));
-    $profileData = array_filter(array_only($data, [
+    $userData    = array_filter(Arr::only($data, ['name', 'phone', 'avatar']));
+    $profileData = array_filter(Arr::only($data, [
       'address',
       'city',
       'province',

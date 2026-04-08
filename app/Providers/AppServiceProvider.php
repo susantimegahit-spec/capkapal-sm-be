@@ -3,6 +3,8 @@
 
 namespace App\Providers;
 
+use App\Modules\Product\Models\Product;
+use App\Modules\Product\Observers\ProductObserver;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\{DB, Log, RateLimiter, Response};
 use Illuminate\Cache\RateLimiting\Limit;
@@ -12,6 +14,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        Product::observe(ProductObserver::class);
         // ── Rate Limiters ─────────────────────────────────────────────
         RateLimiter::for(
 

@@ -15,7 +15,6 @@ class AdminUserSeeder extends Seeder
             ['email' => 'admin@garamcapkapal.id'],
             [
                 'name'              => 'Super Admin',
-                'email'             => 'admin@garamcapkapal.id',
                 'password'          => bcrypt('Admin@GaramCapKapal2025!'),
                 'user_type'         => 'admin',
                 'status'            => 'active',
@@ -24,13 +23,14 @@ class AdminUserSeeder extends Seeder
             ]
         );
 
-//        $admin->assignRole('admin');
+        // Berikan role admin ke user ini
+        $admin->assignRole('admin');
 
-        // Buat reward_points record untuk admin
-//        $admin->rewardPoint()->firstOrCreate([
-//            'user_id' => $admin->id,
-//        ]);
+        // Opsional: Buka komentar jika tabel reward_points sudah ada
+        // $admin->rewardPoint()->firstOrCreate([
+        //     'user_id' => $admin->id,
+        // ]);
 
-        $this->command->info("Admin user created: {$admin->email}");
+        $this->command->info("Admin user created and assigned 'admin' role: {$admin->email}");
     }
 }
