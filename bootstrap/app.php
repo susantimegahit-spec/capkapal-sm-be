@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withEvents(discover: [
         // Add event discovery paths here
         __DIR__.'/../app/Modules/Auth/Listeners',
+        __DIR__.'/../app/Modules/Order/Listeners',
     ])
     ->withExceptions(function (Exceptions $exceptions): void {
         //

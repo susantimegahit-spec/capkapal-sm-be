@@ -13,8 +13,11 @@ use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
 use App\Modules\Product\Repositories\Eloquent\ProductRepository;
 //
 //// Order
-//use App\Modules\Order\Repositories\Contracts\OrderRepositoryInterface;
-//use App\Modules\Order\Repositories\Eloquent\OrderRepository;
+use App\Modules\Order\Repositories\Contracts\OrderRepositoryInterface;
+use App\Modules\Order\Repositories\Eloquent\OrderRepository;
+
+use App\Modules\Payment\Gateway\Contracts\PaymentGatewayInterface;
+use App\Modules\Payment\Gateway\XenditGateway;
 
 class RepositoryServiceProvider extends ServiceProvider
 {
@@ -22,8 +25,8 @@ class RepositoryServiceProvider extends ServiceProvider
   {
     $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
     $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
-    // $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
-    // $this->app->bind(OrderRepositoryInterface::class, OrderRepository::class);
+    $this->app->bind(OrderRepositoryInterface::class, OrderRepository::class);
+    $this->app->bind(PaymentGatewayInterface::class, XenditGateway::class);
     // Tambahkan binding lainnya di sini...
   }
 }

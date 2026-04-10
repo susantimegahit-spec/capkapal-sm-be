@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'xendit' => [
+        'secret_key'    => env('XENDIT_SECRET_KEY'),
+        'public_key'    => env('XENDIT_PUBLIC_KEY'),
+        'webhook_token' => env('XENDIT_WEBHOOK_TOKEN'),
+        'callback_url'  => env('XENDIT_CALLBACK_URL', env('APP_URL') . '/api/v1/webhooks/xendit'),
+    ],
 ];

@@ -219,6 +219,28 @@ return [
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
+            'supervisor-critical' => [
+                'connection' => 'redis',
+                'queue'      => ['critical'],
+                'balance'    => 'auto',
+                'processes'  => 5,     // dedicated 5 workers untuk payment webhook
+                'tries'      => 3,
+                'timeout'    => 90,
+            ],
+            'supervisor-high' => [
+                'connection' => 'redis',
+                'queue'      => ['high'],
+                'balance'    => 'auto',
+                'processes'  => 3,
+                'tries'      => 3,
+            ],
+            'supervisor-default' => [
+                'connection' => 'redis',
+                'queue'      => ['default', 'low'],
+                'balance'    => 'simple',
+                'processes'  => 2,
+                'tries'      => 2,
+            ],
         ],
 
         'local' => [
