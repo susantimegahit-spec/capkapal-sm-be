@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('country', 50)->default('Indonesia');
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
+            $table->string('village', 100)->nullable();
             $table->timestamps();
 
             $table->foreign('order_id')

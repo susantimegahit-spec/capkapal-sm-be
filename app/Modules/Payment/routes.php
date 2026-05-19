@@ -10,8 +10,12 @@ Route::post(
     [WebhookController::class, 'handleXendit']
 )->middleware(VerifyXenditWebhook::class);
 
-// ── Protected ─────────────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments/status/{orderId}',       [PaymentController::class, 'status']);
     Route::post('/payments/{orderNumber}/retry',   [PaymentController::class, 'retry']);
+
+    // Hanya admin yang boleh melakukan sync massal
+    Route::prefix('admin')->middleware('role:admin')->group(function () {
+        Route::post('/payments/sync-all', [PaymentController::class, 'syncAll']);
+    });
 });

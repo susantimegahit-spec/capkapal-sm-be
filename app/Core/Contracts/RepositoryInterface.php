@@ -2,6 +2,7 @@
 
 namespace App\Core\Contracts;
 
+use App\Modules\Auth\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;

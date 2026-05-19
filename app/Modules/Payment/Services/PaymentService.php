@@ -2,11 +2,12 @@
 
 namespace App\Modules\Payment\Services;
 
+use App\Modules\Order\Enums\OrderStatus;
 use App\Modules\Order\Models\Order;
 use App\Modules\Payment\Enums\{PaymentMethod, PaymentStatus};
 use App\Modules\Payment\Gateway\Contracts\PaymentGatewayInterface;
 use App\Modules\Payment\Models\Payment;
-use Illuminate\Support\Facades\{DB, Log};
+use Illuminate\Support\Facades\{DB, Http, Log};
 
 class PaymentService
 {
@@ -28,8 +29,11 @@ class PaymentService
         // Panggil Xendit sesuai metode
         $gatewayResult = match ($paymentMethod) {
             PaymentMethod::VirtualAccount => $this->gateway->createVirtualAccount($order, $provider),
-            PaymentMethod::Ewallet        => $this->gateway->createEwallet($order, $provider,
-                config('app.frontend_url') . '/order/' . $order->order_number),
+            PaymentMethod::Ewallet        => $this->gateway->createEwallet(
+                $order,
+                $provider,
+                config('app.frontend_url') . '/order/' . $order->order_number
+            ),
             PaymentMethod::Qris           => $this->gateway->createQris($order),
             PaymentMethod::RetailOutlet   => $this->gateway->createRetailOutlet($order, $provider),
             PaymentMethod::Flat           => $this->gateway->createFlatTesting($order, $provider),
@@ -62,15 +66,17 @@ class PaymentService
      */
     public function checkStatus(string $orderId, string $userId): array
     {
-        $payment = Payment::whereHas('order', fn($q) =>
-        $q->where('id', $orderId)->where('user_id', $userId)
+        $payment = Payment::whereHas(
+            'order',
+            fn($q) =>
+            $q->where('id', $orderId)->where('user_id', $userId)
         )->firstOrFail();
 
         if ($payment->status->isFinal()) {
             return [
                 'status'      => $payment->status->value,
                 'paid_at'     => $payment->paid_at?->toISOString(),
-                'instructions'=> null,
+                'instructions' => null,
             ];
         }
 
@@ -92,18 +98,136 @@ class PaymentService
      */
     public function retryPayment(string $orderNumber, string $userId, string $method, ?string $provider): array
     {
-        $order = Order::where('order_number', $orderNumber)
-            ->where('user_id', $userId)
-            ->with('payment')
-            ->firstOrFail();
+        return DB::transaction(function () use ($orderNumber, $userId, $method, $provider) {
+            $order = Order::where('order_number', $orderNumber)
+                ->where('user_id', $userId)
+                ->with('payment')
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        if (! in_array($order->status->value, ['pending'])) {
-            throw new \DomainException('Order tidak bisa diretry.');
+            if (! in_array($order->status->value, ['pending'])) {
+                throw new \DomainException('Order tidak bisa diretry.');
+            }
+
+            // Hapus payment lama di dalam transaksi — jika Xendit gagal,
+            // transaksi di-rollback dan record lama tetap ada di DB.
+            $order->payment?->delete();
+
+            return $this->createPaymentForOrder($order, $method, $provider);
+        });
+    }
+
+    /**
+     * Sync semua pembayaran yang masih waiting secara massal
+     */
+    public function syncAllPendingPayments(): array
+    {
+        // 1. Ambil semua payment yang statusnya masih 'Waiting'
+        $payments = Payment::where('status', PaymentStatus::Waiting)
+            ->with(['order.items.variant']) // Load relasi untuk mengembalikan stok
+            ->get();
+
+        $xenditSecretKey = config('services.xendit.secret_key');
+
+        if (empty($xenditSecretKey)) {
+            throw new \Exception('Xendit Secret Key belum dikonfigurasi di file .env');
         }
 
-        // Hapus payment lama
-        $order->payment?->delete();
+        $syncedCount = 0;
+        $failedCount = 0;
+        $unchangedCount = 0;
 
-        return $this->createPaymentForOrder($order, $method, $provider);
+        foreach ($payments as $payment) {
+            try {
+                $xenditStatus = null;
+                $method = $payment->method->value; // Pastikan ini menghasilkan string (contoh: 'ewallet', 'qris')
+
+                // ── A. PENGECEKAN KHUSUS E-WALLET ──
+                if ($method === 'ewallet') {
+                    $response = Http::withBasicAuth($xenditSecretKey, '')
+                        ->get('https://api.xendit.co/ewallets/charges/' . $payment->xendit_id);
+
+                    if ($response->successful()) {
+                        $status = $response->json()['status']; // SUCCEEDED, FAILED, PENDING, VOIDED
+                        if ($status === 'SUCCEEDED') {
+                            $xenditStatus = 'PAID';
+                        } elseif (in_array($status, ['FAILED', 'VOIDED'])) {
+                            $xenditStatus = 'EXPIRED';
+                        }
+                    } else {
+                        // Jika gagal hit API E-wallet, catat & skip
+                        $failedCount++;
+                        continue;
+                    }
+                }
+                // ── B. PENGECEKAN VA, QRIS, RETAIL (Cek Waktu Expired) ──
+                else {
+                    if ($payment->expired_at && $payment->expired_at->isPast()) {
+                        $xenditStatus = 'EXPIRED';
+                    }
+                }
+
+                // Jika status masih null (belum kedaluwarsa & belum dibayar), abaikan
+                if ($xenditStatus === null) {
+                    $unchangedCount++;
+                    continue;
+                }
+
+                // ── 3. TERAPKAN LOGIKA PERUBAHAN DATABASE ──
+                DB::transaction(function () use ($payment, $xenditStatus, &$syncedCount) {
+                    $order = $payment->order;
+
+                    // Kasus 1: Kadaluwarsa
+                    if ($xenditStatus === 'EXPIRED') {
+                        $payment->update(['status' => PaymentStatus::Expired]);
+
+                        // Kembalikan stok: urutkan deterministik, lock per baris
+                        $items = $order->items->sortBy('product_variant_id');
+                        foreach ($items as $item) {
+                            if ($item->variant) {
+                                \App\Modules\Product\Models\ProductVariant::where('id', $item->product_variant_id)
+                                    ->lockForUpdate()
+                                    ->first()
+                                    ?->increment('stock', $item->quantity);
+                            }
+                        }
+
+                        $order->transitionTo(
+                            OrderStatus::Cancelled,
+                            'Dibatalkan sistem (Sync Massal): Waktu pembayaran kedaluwarsa.'
+                        );
+
+                        $syncedCount++;
+                    }
+                    // Kasus 2: Sudah Dibayar
+                    elseif ($xenditStatus === 'PAID') {
+                        $payment->update([
+                            'status'  => PaymentStatus::Paid,
+                            'paid_at' => now(),
+                        ]);
+
+                        // 👇 GUNAKAN FUNGSI transitionTo BAWAAN MODEL ORDER ANDA 👇
+                        $order->transitionTo(
+                            OrderStatus::Confirmed,
+                            'Pembayaran terkonfirmasi (Sync Manual).'
+                        );
+
+                        $syncedCount++;
+                    }
+                });
+            } catch (\Exception $e) {
+                \Log::error("Gagal sync payment massal ID: {$payment->id}", [
+                    'error' => $e->getMessage()
+                ]);
+                $failedCount++;
+            }
+        }
+
+        return [
+            'total_processed' => $payments->count(),
+            'synced'          => $syncedCount,
+            'unchanged'       => $unchangedCount,
+            'failed'          => $failedCount,
+        ];
     }
 }

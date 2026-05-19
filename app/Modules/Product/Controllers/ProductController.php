@@ -3,11 +3,13 @@
 namespace App\Modules\Product\Controllers;
 
 use App\Core\Traits\ApiResponseTrait;
+use App\Modules\Product\Enums\ProductStatus;
 use App\Modules\Product\Requests\{ListProductRequest, StoreProductRequest, UpdateProductRequest};
 use App\Modules\Product\Resources\ProductResource;
 use App\Modules\Product\Services\{ProductSearchService, ProductService};
 use Illuminate\Http\{JsonResponse, Request};
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
@@ -109,23 +111,40 @@ class ProductController extends Controller
     }
 
     // DELETE /api/v1/admin/products/{product}
-    public function destroy(string $product): JsonResponse
-    {
-        $this->productService->delete($product);
+    // public function destroy(string $product): JsonResponse
+    // {
+    //     $this->productService->delete($product);
 
-        return $this->noContent();
+    //     return $this->noContent();
+    // }
+
+    // PATCH /api/v1/admin/products/{product}/update-status
+    public function updateStatus(Request $request, string $productId): JsonResponse
+    {
+        // Validasi ketat menggunakan Enum ProductStatus
+        $request->validate([
+            'status' => ['required', Rule::enum(ProductStatus::class)],
+        ]);
+
+        $product = $this->productService->updateStatus($productId, $request->status);
+
+        return $this->success(
+            new ProductResource($product),
+            'Status produk berhasil diperbarui.'
+        );
     }
 
     // POST /api/v1/admin/products/{product}/images
-    public function uploadImage(Request $request, string $product): JsonResponse
+    public function uploadImage(Request $request, string $productId): JsonResponse
     {
         $request->validate([
             'image'      => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'is_primary' => ['boolean'],
         ]);
 
-        $productModel = $this->productService->findBySlug($product)
-            ?? $this->productService->listAdmin(['search' => $product])->first();
+        // Cari produk strictly by UUID — tidak boleh fallback ke pencarian fuzzy
+        // untuk mencegah gambar terupload ke produk yang salah (IDOR).
+        $productModel = $this->productService->findById($productId);
 
         $image = $this->productService->attachImage(
             product   : $productModel,
@@ -137,9 +156,9 @@ class ProductController extends Controller
     }
 
     // DELETE /api/v1/admin/products/images/{image}
-    public function deleteImage(string $image): JsonResponse
+    public function deleteImage(string $imageId): JsonResponse
     {
-        $this->productService->deleteImage($image);
+        $this->productService->deleteImage($imageId);
 
         return $this->noContent();
     }

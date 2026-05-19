@@ -87,6 +87,8 @@ class UserRepository implements UserRepositoryInterface
         $user->profile()->create(['user_id' => $user->id]);
       }
 
+      $user->assignRole('user');
+
       return $user->load('profile');
     });
   }

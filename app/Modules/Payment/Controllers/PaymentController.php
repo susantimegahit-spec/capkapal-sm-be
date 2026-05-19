@@ -38,4 +38,18 @@ class PaymentController extends Controller
 
         return $this->success($instructions, 'Instruksi pembayaran baru berhasil dibuat.');
     }
+
+    // POST /api/v1/admin/payments/sync-all
+    public function syncAll(): JsonResponse
+    {
+        // Jika perlu, tambahkan gate authorization:
+        // $this->authorize('sync-payments');
+
+        $result = $this->paymentService->syncAllPendingPayments();
+
+        return $this->success(
+            $result,
+            "Sinkronisasi selesai. {$result['synced']} terupdate, {$result['failed']} gagal."
+        );
+    }
 }

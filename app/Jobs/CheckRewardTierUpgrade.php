@@ -12,9 +12,9 @@ class CheckRewardTierUpgrade implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $queue = 'low';
-
-    public function __construct(private readonly string $userId) {}
+    public function __construct(private readonly string $userId) {
+        $this->onQueue('low');
+    }
 
     public function handle(): void
     {

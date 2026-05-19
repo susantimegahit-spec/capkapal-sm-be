@@ -4,8 +4,11 @@ namespace App\Modules\Auth\Models;
 
 use App\Modules\Auth\Enums\UserStatus;
 use App\Modules\Auth\Enums\UserType;
+use App\Modules\Order\Models\Order;
+use App\Modules\Reward\Models\RewardPoint;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -22,17 +25,17 @@ class User extends Authenticatable
   protected $keyType = 'string';
 
   protected $fillable = [
-      'id',
-      'name',
-      'email',
-      'phone',
-      'password',
-      'user_type',
-      'status',
-      'avatar',
-      'referral_code',
-      'referred_by',
-      'email_verified_at',
+    'id',
+    'name',
+    'email',
+    'phone',
+    'password',
+    'user_type',
+    'status',
+    'avatar',
+    'referral_code',
+    'referred_by',
+    'email_verified_at',
   ];
 
   protected $hidden = [
@@ -52,9 +55,19 @@ class User extends Authenticatable
 
   // ── Relationships ─────────────────────────────────────────────────────────
 
+  public function addresses(): HasMany
+  {
+    return $this->hasMany(UserAddress::class);
+  }
+
   public function profile(): HasOne
   {
     return $this->hasOne(UserProfile::class);
+  }
+
+  public function orders(): HasMany
+  {
+    return $this->hasMany(Order::class);
   }
 
   // ── Accessors ─────────────────────────────────────────────────────────────
@@ -64,6 +77,11 @@ class User extends Authenticatable
     return $this->avatar
       ? \Storage::url($this->avatar)
       : 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&background=1B4F72&color=fff';
+  }
+
+  public function rewardPoint(): HasOne
+  {
+    return $this->hasOne(RewardPoint::class);
   }
 
   public function isActive(): bool

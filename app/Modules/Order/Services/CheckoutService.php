@@ -34,13 +34,17 @@ class CheckoutService
 
             // ── 1. Ambil dan validasi cart ────────────────────────────────────
             $cart = $this->cartService->getCart($userId);
-            $this->cartService->validateForCheckout($cart); // throw jika ada masalah
+            $this->cartService->validateForCheckout($cart, $data->cart_item_ids); // throw jika ada masalah
+
+            $selectedItems = $data->cart_item_ids 
+                ? $cart->items->whereIn('id', $data->cart_item_ids)
+                : $cart->items;
 
             // ── 2. Lock variant rows & deduct stock ───────────────────────────
-            $this->reserveStock($cart);
+            $this->reserveStock($selectedItems);
 
             // ── 3. Hitung ongkir ──────────────────────────────────────────────
-            $totalWeight = $cart->items->sum(fn($item) =>
+            $totalWeight = $selectedItems->sum(fn($item) =>
                 ($item->variant->weight ?? 100) * $item->quantity
             );
 
@@ -55,27 +59,27 @@ class CheckoutService
             $couponResult  = null;
             $couponDiscount = 0;
 
+            $subtotalCheckout = $selectedItems->sum('subtotal');
+
             if ($data->coupon_code) {
                 $couponResult  = $this->couponService->validate(
                     $data->coupon_code,
-                    $cart->subtotal,
+                    $subtotalCheckout,
                     $cart->user,
                 );
                 $couponDiscount = $couponResult['discount'];
             }
 
-            // ── 5. Hitung diskon reward points ────────────────────────────────
-            $pointsDiscount = 0;
-
-            if ($data->points_used > 0) {
-                $pointsDiscount = $this->rewardService->calculatePointsValue(
-                    userId     : $userId,
-                    pointsToUse: $data->points_used,
-                );
-            }
+            // ── 5. Hitung nilai diskon reward points ─────────────────────────────
+            // Kalkulasi nilai poin secara lokal (tidak baca DB di sini).
+            // Validasi saldo dan pengurangan dilakukan secara atomic di step 12 (redeem()),
+            // yang sudah menggunakan lockForUpdate() untuk mencegah double-spend.
+            $pointsDiscount = $data->points_used > 0
+                ? $data->points_used * RewardService::POINTS_VALUE
+                : 0;
 
             // ── 6. Hitung total akhir ─────────────────────────────────────────
-            $subtotal     = $cart->subtotal;
+            $subtotal     = $subtotalCheckout;
             $shippingFee  = $shipping['price'];
             $total        = max(0, $subtotal - $couponDiscount - $pointsDiscount + $shippingFee);
 
@@ -98,7 +102,7 @@ class CheckoutService
             ]);
 
             // ── 8. Buat Order Items (dengan snapshot) ─────────────────────────
-            foreach ($cart->items as $cartItem) {
+            foreach ($selectedItems as $cartItem) {
                 $variant = $cartItem->variant;
 
                 OrderItem::create([
@@ -121,6 +125,7 @@ class CheckoutService
                 'phone'          => $data->phone,
                 'address'        => $data->address,
                 'district'       => $data->district,
+                'village'        => $data->village,
                 'city'           => $data->city,
                 'province'       => $data->province,
                 'postal_code'    => $data->postal_code,
@@ -159,8 +164,8 @@ class CheckoutService
                 provider : $data->payment_provider,
             );
 
-            // ── 14. Kosongkan cart ────────────────────────────────────────────
-            $this->cartService->cartRepository->clearCart($cart);
+            // ── 14. Hapus item yang dicheckout dari cart ──────────────────────
+            $this->cartService->cartRepository->removeItems($cart, $selectedItems->pluck('id')->all());
 
             // ── 15. Dispatch event (email konfirmasi, dll.) ───────────────────
             event(new OrderPlaced($order));
@@ -177,19 +182,23 @@ class CheckoutService
      * Lock semua variant yang ada di cart dan kurangi stoknya secara atomic.
      * Menggunakan SELECT FOR UPDATE untuk mencegah race condition.
      */
-    private function reserveStock(Cart $cart): void
+    private function reserveStock(iterable $selectedItems): void
     {
-        $variantIds = $cart->items->pluck('product_variant_id')->all();
+        $variantIds = [];
+        foreach ($selectedItems as $item) {
+            $variantIds[] = $item->product_variant_id;
+        }
 
-        // Lock semua variant sekaligus (1 query, bukan N queries)
+        // Lock semua variant sekaligus secara berurutan berdasarkan ID untuk mencegah deadlock
         $variants = ProductVariant::whereIn('id', $variantIds)
+            ->orderBy('id')
             ->lockForUpdate()
             ->get()
             ->keyBy('id');
 
         $errors = [];
 
-        foreach ($cart->items as $item) {
+        foreach ($selectedItems as $item) {
             $variant = $variants->get($item->product_variant_id);
 
             if (! $variant || $variant->stock < $item->quantity) {
@@ -204,7 +213,7 @@ class CheckoutService
         }
 
         // Kurangi stok semua variant
-        foreach ($cart->items as $item) {
+        foreach ($selectedItems as $item) {
             ProductVariant::where('id', $item->product_variant_id)
                 ->decrement('stock', $item->quantity);
         }

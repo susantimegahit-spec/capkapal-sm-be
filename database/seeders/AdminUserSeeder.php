@@ -27,9 +27,9 @@ class AdminUserSeeder extends Seeder
         $admin->assignRole('admin');
 
         // Opsional: Buka komentar jika tabel reward_points sudah ada
-        // $admin->rewardPoint()->firstOrCreate([
-        //     'user_id' => $admin->id,
-        // ]);
+         $admin->rewardPoint()->firstOrCreate([
+             'user_id' => $admin->id,
+         ]);
 
         $this->command->info("Admin user created and assigned 'admin' role: {$admin->email}");
     }

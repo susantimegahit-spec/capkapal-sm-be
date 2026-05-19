@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Auth\Controllers\AuthController;
+use App\Modules\Auth\Controllers\UserAddressController;
 use Illuminate\Support\Facades\Route;
 
 // Public auth routes
@@ -25,4 +26,11 @@ Route::middleware('auth:sanctum')->prefix('user')->group(function () {
   Route::put('profile',      [AuthController::class, 'updateProfile']);
   Route::post('avatar',      [AuthController::class, 'uploadAvatar']);
   Route::put('password',     [AuthController::class, 'changePassword']);
+});
+
+Route::middleware('auth:sanctum')->prefix('addresses')->group(function () {
+  Route::get('/',          [UserAddressController::class, 'index']);
+  Route::post('/',         [UserAddressController::class, 'store']);
+  Route::put('/{address}', [UserAddressController::class, 'update']);
+  Route::delete('/{address}', [UserAddressController::class, 'destroy']);
 });

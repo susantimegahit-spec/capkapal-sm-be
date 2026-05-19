@@ -18,7 +18,7 @@ class ListProductRequest extends FormRequest
             'max_price'   => ['nullable', 'numeric', 'min:0'],
             'in_stock'    => ['nullable', 'boolean'],
             'is_featured' => ['nullable', 'boolean'],
-            'per_page'    => ['nullable', 'integer', 'min:1', 'max:100'],
+            'per_page'    => ['nullable', 'integer', 'min:1', 'max:30'],
         ];
     }
 }

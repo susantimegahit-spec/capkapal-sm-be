@@ -70,8 +70,9 @@ class ProcessXenditWebhook implements ShouldQueue
 
         $xenditId  = $this->extractXenditId($payload);
 
-        // Cari payment berdasarkan xendit_id
-        $payment = Payment::where('xendit_id', $xenditId)->first();
+        // Cari payment berdasarkan xendit_id dengan penguncian baris (row lock)
+        // untuk mencegah race condition / double processing.
+        $payment = Payment::where('xendit_id', $xenditId)->lockForUpdate()->first();
 
         if (! $payment) {
             Log::warning('Payment not found for webhook', ['xendit_id' => $xenditId]);
@@ -116,15 +117,22 @@ class ProcessXenditWebhook implements ShouldQueue
             );
         } elseif ($newStatus === PaymentStatus::Failed || $newStatus === PaymentStatus::Expired) {
             // Kembalikan stok jika payment gagal/expired
-            foreach ($order->items as $item) {
+            // Urutkan berdasarkan product_variant_id secara deterministik untuk mencegah deadlock
+            $items = $order->items->sortBy('product_variant_id');
+            foreach ($items as $item) {
                 \App\Modules\Product\Models\ProductVariant::where('id', $item->product_variant_id)
-                    ->increment('stock', $item->quantity);
+                    ->lockForUpdate()
+                    ->first()
+                    ?->increment('stock', $item->quantity);
             }
 
-            // Kembalikan poin jika pernah di-redeem
+            // Kembalikan poin setelah transaksi commit agar job tidak berjalan
+            // jika transaksi di-rollback (mencegah double-refund)
             if ($order->points_used > 0) {
-                \App\Jobs\RefundRewardPoints::dispatch($order->user_id, $order->points_used, $order->id)
-                    ->onQueue('high');
+                DB::afterCommit(function () use ($order) {
+                    \App\Jobs\RefundRewardPoints::dispatch($order->user_id, $order->points_used, $order->id)
+                        ->onQueue('high');
+                });
             }
 
             $order->transitionTo(

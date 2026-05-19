@@ -22,7 +22,9 @@ class CheckoutData extends Data
         public readonly ?string $payment_provider,  // bca, ovo, dana, gopay, dll.
 
         // Optional
+        public readonly ?array  $cart_item_ids  = null,
         public readonly ?string $district       = null,
+        public readonly ?string $village        = null,
         public readonly ?string $coupon_code    = null,
         public readonly int     $points_used    = 0,
         public readonly ?string $customer_notes = null,

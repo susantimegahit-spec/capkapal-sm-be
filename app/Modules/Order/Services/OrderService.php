@@ -15,8 +15,8 @@ use Illuminate\Validation\ValidationException;
 class OrderService
 {
     public function __construct(
-        private readonly OrderRepositoryInterface $orderRepository,
-        private readonly RewardService            $rewardService,
+        public readonly OrderRepositoryInterface $orderRepository,
+        private readonly RewardService           $rewardService,
     ) {}
 
     public function getOrdersForUser(string $userId, array $filters, int $perPage = 10): LengthAwarePaginator
@@ -52,9 +52,9 @@ class OrderService
             // Kembalikan reward points yang digunakan
             if ($order->points_used > 0) {
                 $this->rewardService->refundPoints(
-                    userId  : $userId,
-                    points  : $order->points_used,
-                    orderId : $order->id,
+                    userId: $userId,
+                    points: $order->points_used,
+                    orderId: $order->id,
                 );
             }
 
@@ -74,6 +74,17 @@ class OrderService
         ?string     $trackingNumber = null,
     ): Order {
         return DB::transaction(function () use ($orderId, $newStatus, $actorId, $notes, $trackingNumber) {
+            // Kunci baris order sebelum validasi apapun untuk mencegah race condition
+            // dengan webhook pembayaran yang berjalan bersamaan.
+            $currentOrder = Order::lockForUpdate()->findOrFail($orderId);
+
+            // ── BLOKIR JIKA BELUM DIBAYAR (cek di dalam transaksi yang terkunci) ──
+            if ($currentOrder->status === OrderStatus::Pending && $newStatus !== OrderStatus::Cancelled) {
+                throw ValidationException::withMessages([
+                    'status' => 'Aksi ditolak: Tidak dapat mengubah status karena pelanggan belum menyelesaikan pembayaran.',
+                ]);
+            }
+
             $order = $this->orderRepository->updateStatus($orderId, $newStatus, $notes, $actorId);
 
             if ($trackingNumber) {
@@ -98,9 +109,18 @@ class OrderService
 
     private function restoreStock(Order $order): void
     {
-        foreach ($order->items as $item) {
+        // Load items jika belum di-eager-load
+        $order->loadMissing('items');
+
+        // Urutkan berdasarkan product_variant_id secara deterministik untuk mencegah deadlock
+        $items = $order->items->sortBy('product_variant_id');
+
+        foreach ($items as $item) {
+            // Gunakan lockForUpdate per baris agar atomic dan konsisten
             ProductVariant::where('id', $item->product_variant_id)
-                ->increment('stock', $item->quantity);
+                ->lockForUpdate()
+                ->first()
+                ?->increment('stock', $item->quantity);
         }
     }
 }

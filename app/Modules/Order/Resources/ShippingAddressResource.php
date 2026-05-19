@@ -17,6 +17,7 @@ class ShippingAddressResource extends JsonResource
             'city'           => $this->city,
             'province'       => $this->province,
             'postal_code'    => $this->postal_code,
+            'village'        => $this->village
         ];
     }
 }

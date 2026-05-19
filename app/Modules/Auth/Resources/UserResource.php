@@ -4,6 +4,7 @@ namespace App\Modules\Auth\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Modules\Order\Resources\OrderResource;
 
 class UserResource extends JsonResource
 {
@@ -20,6 +21,11 @@ class UserResource extends JsonResource
       'roles'      => $this->getRoleNames(),
       'is_email_verified' => ! is_null($this->email_verified_at),
       'profile'    => $this->whenLoaded('profile', fn() => new UserProfileResource($this->profile)),
+      'orders_count' => $this->whenHas('orders_count'),
+      'orders_sum_total' => $this->whenHas('orders_sum_total', fn() => (float) $this->orders_sum_total),
+      'successful_orders_count' => $this->whenHas('successful_orders_count'),
+      'successful_orders_total' => $this->whenHas('successful_orders_total', fn() => (float) $this->successful_orders_total),
+      'orders'     => $this->whenLoaded('orders', fn() => OrderResource::collection($this->orders)),
       'created_at' => $this->created_at->toISOString(),
     ];
   }

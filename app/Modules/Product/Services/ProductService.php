@@ -48,6 +48,13 @@ class ProductService
         return $product;
     }
 
+    public function findById(string $id): Product
+    {
+        $product = $this->productRepository->findOrFail($id);
+
+        return $product;
+    }
+
     public function getFeatured(int $limit = 8): \Illuminate\Database\Eloquent\Collection
     {
         return Cache::tags(['products'])->remember(
@@ -96,7 +103,6 @@ class ProductService
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
-
     public function delete(string $id): void
     {
         $product = $this->productRepository->findOrFail($id);
@@ -106,14 +112,34 @@ class ProductService
         $this->flushCache();
     }
 
+    // ── Status ────────────────────────────────────────────────────────────────
+    public function updateStatus(string $id, string $status): Product
+    {
+        $product = DB::transaction(function () use ($id, $status) {
+            $product = $this->productRepository->update($id, [
+                'status' => $status
+            ]);
+
+            event(new ProductUpdated($product));
+
+            return $product;
+        });
+
+        $this->flushCache();
+
+        return $product->load(['category', 'activeVariants', 'images']);
+    }
+
     // ── Variants ──────────────────────────────────────────────────────────────
 
     public function upsertVariant(string $productId, array $data): ProductVariant
     {
         $product = $this->productRepository->findOrFail($productId);
 
+        // Verifikasi kepemilikan variant: pastikan variant.id milik produk ini.
+        // Mencegah IDOR di mana editor bisa mengirim ID variant dari produk lain.
         $variant = isset($data['id'])
-            ? ProductVariant::findOrFail($data['id'])
+            ? ProductVariant::where('product_id', $product->id)->findOrFail($data['id'])
             : new ProductVariant(['product_id' => $product->id]);
 
         $variant->fill($data)->save();
@@ -143,19 +169,22 @@ class ProductService
 
     public function updateStock(string $variantId, int $qty, string $operation = 'set'): ProductVariant
     {
-        $variant = ProductVariant::findOrFail($variantId);
+        return DB::transaction(function () use ($variantId, $qty, $operation) {
+            // lockForUpdate mencegah race condition saat dua admin update stok bersamaan
+            $variant = ProductVariant::lockForUpdate()->findOrFail($variantId);
 
-        $newStock = match ($operation) {
-            'set'       => $qty,
-            'increment' => $variant->stock + $qty,
-            'decrement' => max(0, $variant->stock - $qty),
-            default     => throw new \InvalidArgumentException("Invalid stock operation: {$operation}"),
-        };
+            $newStock = match ($operation) {
+                'set'       => $qty,
+                'increment' => $variant->stock + $qty,
+                'decrement' => max(0, $variant->stock - $qty),
+                default     => throw new \InvalidArgumentException("Invalid stock operation: {$operation}"),
+            };
 
-        $variant->update(['stock' => $newStock]);
-        $this->flushCache();
+            $variant->update(['stock' => $newStock]);
+            $this->flushCache();
 
-        return $variant->fresh();
+            return $variant->fresh();
+        });
     }
 
     // ── Images ────────────────────────────────────────────────────────────────
@@ -224,10 +253,32 @@ class ProductService
             ]);
         }
 
+        // Verifikasi pembelian jika order_item_id diberikan:
+        // Pastikan order_item milik user ini, terkait produk ini, dan ordernya sudah selesai.
+        $isVerifiedPurchase = false;
+
+        if (! empty($data['order_item_id'])) {
+            $isVerifiedPurchase = DB::table('order_items as oi')
+                ->join('orders as o', 'o.id', '=', 'oi.order_id')
+                ->join('product_variants as pv', 'pv.id', '=', 'oi.product_variant_id')
+                ->where('oi.id', $data['order_item_id'])
+                ->where('o.user_id', $userId)
+                ->where('pv.product_id', $productId)
+                ->whereIn('o.status', ['delivered', 'completed', 'confirmed'])
+                ->exists();
+
+            if (! $isVerifiedPurchase) {
+                throw ValidationException::withMessages([
+                    'order_item_id' => ['Item pesanan tidak valid atau pesanan belum selesai.'],
+                ]);
+            }
+        }
+
         $review = \App\Modules\Product\Models\ProductReview::create([
             ...$data,
-            'product_id' => $productId,
-            'user_id'    => $userId,
+            'product_id'           => $productId,
+            'user_id'              => $userId,
+            'is_verified_purchase' => $isVerifiedPurchase,
         ]);
 
         // Hitung ulang rating di background

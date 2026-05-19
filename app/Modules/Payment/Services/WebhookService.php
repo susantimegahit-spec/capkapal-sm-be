@@ -56,21 +56,25 @@ class WebhookService
 
     private function logWebhook(string $eventId, string $eventType, array $payload): array
     {
-        $existing = PaymentLog::where('xendit_event_id', $eventId)->first();
+        try {
+            $log = PaymentLog::firstOrCreate(
+                ['xendit_event_id' => $eventId],
+                [
+                    'event_type'  => $eventType,
+                    'payload'     => $payload,
+                    'status'      => 'received',
+                    'received_at' => now(),
+                ]
+            );
 
-        if ($existing) {
+            // Jika wasRecentlyCreated bernilai true, berarti data baru berhasil disisipkan.
+            return [$log, $log->wasRecentlyCreated];
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // Fallback: Jika terjadi race condition (sangat jarang) yang lolos dari firstOrCreate,
+            // kita tangkap exception-nya lalu fetch data yang berhasil masuk.
+            $existing = PaymentLog::where('xendit_event_id', $eventId)->first();
             return [$existing, false];
         }
-
-        $log = PaymentLog::create([
-            'xendit_event_id' => $eventId,
-            'event_type'      => $eventType,
-            'payload'         => $payload,
-            'status'          => 'received',
-            'received_at'     => now(),
-        ]);
-
-        return [$log, true];
     }
 
     private function resolveEventId(array $payload): string
@@ -78,7 +82,10 @@ class WebhookService
         // Xendit mengirimkan 'id' di semua tipe webhook
         return $payload['id']
             ?? $payload['external_id']
-            ?? md5(json_encode($payload) . now()->timestamp);
+            // Fallback HARUS deterministik — tanpa komponen waktu.
+            // md5/sha256 dari payload saja, sehingga retry webhook yang sama
+            // menghasilkan event_id yang sama dan idempotency tetap terjaga.
+            ?? hash('sha256', json_encode($payload));
     }
 
     private function resolveEventType(Request $request, array $payload): string

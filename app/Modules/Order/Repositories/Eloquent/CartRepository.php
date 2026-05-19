@@ -2,7 +2,7 @@
 
 namespace App\Modules\Order\Repositories\Eloquent;
 
-use App\Modules\Order\Models\{Cart, CartItem};
+use App\Modules\Order\Models\{Cart};
 use Illuminate\Support\Facades\DB;
 
 class CartRepository
@@ -70,5 +70,20 @@ class CartRepository
             'points_used'     => 0,
             'points_discount' => 0,
         ]);
+    }
+
+    public function removeItems(Cart $cart, array $itemIds): void
+    {
+        $cart->items()->whereIn('id', $itemIds)->delete();
+
+        // Check if cart is empty after removal
+        if ($cart->items()->count() === 0) {
+            $cart->update([
+                'coupon_code'     => null,
+                'coupon_discount' => 0,
+                'points_used'     => 0,
+                'points_discount' => 0,
+            ]);
+        }
     }
 }

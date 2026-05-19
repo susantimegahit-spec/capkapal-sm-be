@@ -1,5 +1,5 @@
 <?php
-// app/Jobs/RecalculateProductRating.php
+
 namespace App\Jobs;
 
 use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
@@ -12,9 +12,9 @@ class RecalculateProductRating implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $queue = 'default';
-
-    public function __construct(private readonly string $productId) {}
+    public function __construct(private readonly string $productId) {
+        $this->onQueue('default');
+    }
 
     public function handle(ProductRepositoryInterface $repository): void
     {

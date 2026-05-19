@@ -23,21 +23,25 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
-// Tambahkan prefix 'admin/' dan middleware Spatie Permission 'role:admin'
+// Operasi konten produk: admin dan editor boleh
 Route::middleware(['auth:sanctum', 'role:admin|editor'])->prefix('admin')->group(function () {
     Route::prefix('products')->group(function () {
         Route::get('/',                          [ProductController::class, 'adminIndex']);
         Route::post('/',                         [ProductController::class, 'store']);
         Route::put('/{product}',                 [ProductController::class, 'update']);
-        Route::delete('/{product}',              [ProductController::class, 'destroy']);
+        // Route::delete('/{product}',              [ProductController::class, 'destroy']);
+        Route::patch('/{product}/update-status', [ProductController::class, 'updateStatus']);
         Route::post('/{product}/images',         [ProductController::class, 'uploadImage']);
         Route::delete('/images/{image}',         [ProductController::class, 'deleteImage']);
-        Route::patch('/variants/{variant}/stock',[ProductController::class, 'updateStock']);
     });
 
     Route::prefix('categories')->group(function () {
         Route::post('/',       [CategoryController::class, 'store']);
         Route::put('/{id}',    [CategoryController::class, 'update']);
     });
+});
 
+// Operasi stok: hanya admin yang boleh (operasi kritis inventory)
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
+    Route::patch('/products/variants/{variant}/stock', [ProductController::class, 'updateStock']);
 });

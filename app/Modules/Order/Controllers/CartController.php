@@ -6,8 +6,10 @@ use App\Core\Traits\ApiResponseTrait;
 use App\Modules\Order\Requests\AddCartItemRequest;
 use App\Modules\Order\Resources\CartResource;
 use App\Modules\Order\Services\CartService;
+use App\Modules\Order\Services\ShippingService;
 use Illuminate\Http\{JsonResponse, Request};
 use Illuminate\Routing\Controller;
+use Illuminate\Validation\Rule;
 
 class CartController extends Controller
 {
@@ -78,11 +80,24 @@ class CartController extends Controller
     }
 
     // GET /api/v1/cart/shipping-options
-    public function shippingOptions(Request $request, \App\Modules\Order\Services\ShippingService $shippingService): JsonResponse
+    public function shippingOptions(Request $request, ShippingService $shippingService): JsonResponse
     {
         $request->validate([
-            'city'   => ['required', 'string'],
+            'city'   => [
+                'required',
+                'string',
+                Rule::in([
+                    'Kota Surabaya',
+                    'Surabaya',
+                    'Kabupaten Gresik',
+                    'Gresik',
+                    'Kabupaten Sidoarjo',
+                    'Sidoarjo'
+                ])
+            ],
             'weight' => ['nullable', 'numeric'],
+        ], [
+            'city.in' => 'Maaf, layanan pengiriman kami saat ini hanya menjangkau area Surabaya, Gresik, dan Sidoarjo.',
         ]);
 
         $options = $shippingService->getAvailableCouriers(

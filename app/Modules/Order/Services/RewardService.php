@@ -9,7 +9,7 @@ use Illuminate\Validation\ValidationException;
 class RewardService
 {
     // 1 poin = Rp 10
-    private const POINTS_VALUE = 10;
+    public const POINTS_VALUE = 10;
     // 1 poin per Rp 10.000 pembelian
     private const EARN_RATE    = 10000;
 

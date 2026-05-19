@@ -6,7 +6,10 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class AddCartItemRequest extends FormRequest
 {
-    public function authorize(): bool { return auth()->check(); }
+    public function authorize(): bool
+    {
+        return $this->user()->hasRole(['user', 'agen']);
+    }
 
     public function rules(): array
     {

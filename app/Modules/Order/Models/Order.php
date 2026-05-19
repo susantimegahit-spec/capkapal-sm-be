@@ -98,7 +98,10 @@ class Order extends Model
             );
         }
 
-        $timestampField = match($next) {
+        // 1. Simpan status lama sebelum diupdate
+        $oldStatus = $this->status;
+
+        $timestampField = match ($next) {
             OrderStatus::Confirmed  => 'confirmed_at',
             OrderStatus::Shipped    => 'shipped_at',
             OrderStatus::Delivered  => 'delivered_at',
@@ -117,5 +120,69 @@ class Order extends Model
             'notes'      => $notes,
             'created_by' => $actorId,
         ]);
+
+        // 2. Sinkronisasi Total Terjual Produk
+        $this->syncProductTotalSold($oldStatus, $next);
+    }
+
+    /**
+     * Logic untuk menambah/mengurangi total_sold pada Produk
+     */
+    private function syncProductTotalSold(OrderStatus $oldStatus, OrderStatus $next): void
+    {
+        // Kondisi 1: Pesanan baru saja sukses dibayar
+        $isJustPaid = ($oldStatus === OrderStatus::Pending && $next === OrderStatus::Confirmed);
+
+        // Kondisi 2: Pesanan dibatalkan/direfund SETELAH sebelumnya sudah berstatus dibayar/diproses
+        $wasPaid = in_array($oldStatus, [
+            OrderStatus::Confirmed,
+            OrderStatus::Processing,
+            OrderStatus::Shipped,
+            OrderStatus::Delivered,
+            OrderStatus::Completed
+        ]);
+        $isCancelledOrRefunded = in_array($next, [OrderStatus::Cancelled, OrderStatus::Refunded]);
+
+        // Jika tidak masuk kedua kondisi di atas, hentikan fungsi
+        if (! $isJustPaid && ! ($wasPaid && $isCancelledOrRefunded)) {
+            return;
+        }
+
+        // Pastikan relasi diload untuk menghindari N+1 query
+        $this->loadMissing('items.variant.product');
+
+        foreach ($this->items as $item) {
+            $product = $item->variant?->product;
+
+            if ($product) {
+                if ($isJustPaid) {
+                    // Gunakan atomic increment untuk mencegah race condition
+                    $product->increment('total_sold', $item->quantity);
+                } elseif ($wasPaid && $isCancelledOrRefunded) {
+                    $currentSold = $product->total_sold ?? 0;
+                    if ($currentSold > 0) {
+                        $decrementAmount = min($currentSold, $item->quantity);
+                        $product->decrement('total_sold', $decrementAmount);
+                    }
+                }
+
+                // Karena increment() tidak memicu event Eloquent (seperti 'saved'),
+                // kita perlu memanggil sinkronisasi Scout secara manual.
+                if (method_exists($product, 'shouldBeSearchable')) {
+                    if ($product->shouldBeSearchable()) {
+                        $product->searchable();
+                    } else {
+                        $product->unsearchable();
+                    }
+                } elseif (method_exists($product, 'searchable')) {
+                    $product->searchable();
+                }
+            }
+        }
+
+        // SANGAT PENTING: Bersihkan cache produk agar UI Frontend langsung ter-refresh!
+        if (class_exists(\Illuminate\Support\Facades\Cache::class)) {
+            \Illuminate\Support\Facades\Cache::tags(['products'])->flush();
+        }
     }
 }

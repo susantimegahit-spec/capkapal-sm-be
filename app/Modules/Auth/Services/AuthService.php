@@ -34,7 +34,7 @@ class AuthService
       'name'        => $data->name,
       'email'       => $data->email,
       'phone'       => $data->phone,
-      'password'    => $data->password, // cast: 'hashed' handles bcrypt
+      'password'    => $data->password,
       'user_type'   => UserType::User,
       'status'      => UserStatus::Active,
       'referred_by' => $referredBy?->id,
@@ -49,7 +49,9 @@ class AuthService
     $user = $this->userRepository->createWithProfile($userData, $profileData);
 
     // Assign default role based on user_type
-//    $user->assignRole($data->user_type->defaultRole());
+    $user->assignRole($data->user_type?->defaultRole() ?? UserType::User->defaultRole());
+
+    // Create reward point for user
 
     // Dispatch event → sends verification email, reward setup, etc.
     event(new UserRegistered($user, referredBy: $referredBy));
@@ -73,7 +75,7 @@ class AuthService
 
     if (! $user->isActive()) {
       throw ValidationException::withMessages([
-        'email' => ['Akun Anda tidak aktif. Hubungi dukungan.'],
+        'email' => ['Akun Anda tidak aktif. Silakan ubungi Admin.'],
       ]);
     }
 

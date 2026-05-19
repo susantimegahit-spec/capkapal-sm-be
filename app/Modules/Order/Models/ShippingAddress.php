@@ -14,7 +14,7 @@ class ShippingAddress extends Model
         'order_id', 'recipient_name', 'phone',
         'address', 'district', 'city',
         'province', 'postal_code', 'country',
-        'latitude', 'longitude',
+        'latitude', 'longitude', 'village'
     ];
 
     public function order(): BelongsTo

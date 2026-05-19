@@ -3,10 +3,8 @@
 use App\Modules\Order\Controllers\{CartController, CheckoutController, OrderController};
 use Illuminate\Support\Facades\Route;
 
-// ── Semua protected by auth:sanctum (di-set di routes/api.php) ───────────────
-
 // Cart
-Route::prefix('cart')->group(function () {
+Route::middleware(['auth:sanctum', 'role:user|agen'])->prefix('cart')->group(function () {
     Route::get('/',                     [CartController::class, 'show']);
     Route::post('/items',               [CartController::class, 'addItem']);
     Route::put('/items/{cartItem}',     [CartController::class, 'updateItem']);
@@ -17,14 +15,18 @@ Route::prefix('cart')->group(function () {
 });
 
 // Checkout
-Route::post('/checkout', [CheckoutController::class, 'process']);
+Route::middleware(['auth:sanctum', 'role:user|agen'])->group(function () {
+    Route::post('/checkout', [CheckoutController::class, 'process']);
+});
 
-// Orders
-Route::prefix('orders')->group(function () {
+// Orders — auth wajib; user hanya bisa akses order miliknya sendiri
+Route::middleware(['auth:sanctum', 'role:user|agen'])->prefix('orders')->group(function () {
     Route::get('/',                           [OrderController::class, 'index']);
     Route::get('/{orderNumber}',              [OrderController::class, 'show']);
     Route::post('/{orderNumber}/cancel',      [OrderController::class, 'cancel']);
 });
 
-// Admin routes (dibungkus middleware role:admin di api.php)
-Route::patch('/orders/{orderId}/status', [OrderController::class, 'updateStatus']);
+// Catatan: Route updateStatus telah DIPINDAH ke Admin module (OrderManagementController)
+// untuk memastikan setiap perubahan status tercatat di audit log.
+// Lihat: app/Modules/Admin/routes.php → PATCH /admin/orders/{orderId}/status
+

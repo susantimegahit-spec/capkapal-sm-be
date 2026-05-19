@@ -2,7 +2,6 @@
 
 namespace App\Modules\Product\Repositories\Eloquent;
 
-use App\Modules\Product\Enums\ProductStatus;
 use App\Modules\Product\Models\{Product, ProductVariant};
 use App\Modules\Product\Repositories\Contracts\ProductRepositoryInterface;
 use Illuminate\Database\Eloquent\{Collection, Model};
@@ -103,13 +102,50 @@ class ProductRepository implements ProductRepositoryInterface
     public function update(string|int $id, array $data): Product
     {
         $product = $this->findOrFail($id);
+
+        // 1. Ekstrak variants dari payload agar tidak diabaikan
+        $variantsData = $data['variants'] ?? null;
+        unset($data['variants']);
+
+        // 2. Update Product Utama (Judul, deskripsi, dll)
         $product->update($data);
+
+        // 3. Sinkronisasi Variants secara manual
+        if (is_array($variantsData)) {
+            $existingVariantIds = $product->variants()->pluck('id')->toArray();
+            $payloadVariantIds = collect($variantsData)->pluck('id')->filter()->toArray();
+
+            // A. DELETE: Hapus varian yang ada di DB tapi tidak ada di payload (jika user menghapus varian)
+            $variantsToDelete = array_diff($existingVariantIds, $payloadVariantIds);
+            if (!empty($variantsToDelete)) {
+                $product->variants()->whereIn('id', $variantsToDelete)->delete();
+            }
+
+            // B. UPDATE / CREATE varian
+            $sortOrder = 1;
+            foreach ($variantsData as $vData) {
+                $vData['sort_order'] = $sortOrder++;
+
+                if (isset($vData['id']) && in_array($vData['id'], $existingVariantIds)) {
+                    // Jika ID ada di DB, Update record tersebut.
+                    // Kita pakai ->find() lalu ->update() agar casting field 'attributes' (Array ke JSON) berjalan aman.
+                    $variant = $product->variants()->find($vData['id']);
+                    if ($variant) {
+                        $variant->update($vData);
+                    }
+                } else {
+                    // Jika tidak ada ID (Varian Baru), Create record baru
+                    $product->variants()->create($vData);
+                }
+            }
+        }
+
         return $product->fresh(['category', 'activeVariants', 'images']);
     }
 
     public function delete(string|int $id): bool
     {
-        return $this->findOrFail($id)->delete(); // soft delete
+        return $this->findOrFail($id)->delete($id);
     }
 
     public function incrementSoldCount(string $productId, int $qty): void

@@ -91,7 +91,10 @@ class CartService
     public function removeItem(string $userId, string $cartItemId): Cart
     {
         $cart = $this->getCart($userId);
-        $cart->items()->where('id', $cartItemId)->delete();
+
+        // Verifikasi kepemilikan item secara eksplisit sebelum menghapus.
+        // findOrFail memastikan item ada DAN milik cart user ini (lewat relasi).
+        $cart->items()->findOrFail($cartItemId)->delete();
 
         return $cart->fresh('items.variant.product.primaryImage');
     }
@@ -130,7 +133,7 @@ class CartService
 
     // ── Validate Cart (dipanggil sebelum checkout) ────────────────────────────
 
-    public function validateForCheckout(Cart $cart): void
+    public function validateForCheckout(Cart $cart, ?array $selectedItemIds = null): void
     {
         if ($cart->isEmpty()) {
             throw ValidationException::withMessages([
@@ -138,12 +141,32 @@ class CartService
             ]);
         }
 
-        $errors = [];
+        $itemsToValidate = $selectedItemIds 
+            ? $cart->items->whereIn('id', $selectedItemIds)
+            : $cart->items;
 
-        foreach ($cart->items as $item) {
-            $variant = ProductVariant::with('product')
-                ->lockForUpdate()
-                ->find($item->product_variant_id);
+        if ($selectedItemIds && $itemsToValidate->isEmpty()) {
+            throw ValidationException::withMessages([
+                'cart' => ['Produk yang dipilih tidak ditemukan di keranjang.'],
+            ]);
+        }
+
+        $errors = [];
+        $userType = $cart->user->user_type->value ?? 'consumer';
+
+        // Fix Deadlock Risk: Lock rows sequentially by ID
+        $variantIds = $itemsToValidate->pluck('product_variant_id')->all();
+        $variants = ProductVariant::with('product')
+            ->whereIn('id', $variantIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        $priceUpdated = false;
+
+        foreach ($itemsToValidate as $item) {
+            $variant = $variants->get($item->product_variant_id);
 
             if (! $variant || ! $variant->is_active || ! $variant->product->status->isPublic()) {
                 $errors[] = "{$item->variant->product->name} — {$item->variant->name} tidak tersedia lagi.";
@@ -153,6 +176,20 @@ class CartService
             if ($variant->stock < $item->quantity) {
                 $errors[] = "{$variant->product->name} — {$variant->name}: stok tersisa {$variant->stock}.";
             }
+
+            // Fix Price Manipulation: Sinkronisasi harga terbaru untuk menghindari stale price
+            $currentPrice = $variant->getPriceForUserType($userType);
+            if ($item->unit_price != $currentPrice) {
+                $item->update(['unit_price' => $currentPrice]);
+                // Update on memory untuk re-calculate yang proper di baris berikutnya
+                $item->unit_price = $currentPrice;
+                $priceUpdated = true;
+            }
+        }
+
+        if ($priceUpdated) {
+            // Jika ada harga yang terupdate otomatis, kita refresh subtotal dari cart
+            $cart->refresh();
         }
 
         if (! empty($errors)) {
