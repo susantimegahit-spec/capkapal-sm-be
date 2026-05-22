@@ -16,9 +16,7 @@ class CategoryService
 
     public function getTree(): Collection
     {
-        return Cache::remember('categories:tree', now()->addDay(), fn() =>
-        $this->categoryRepository->getTree()
-        );
+        return $this->categoryRepository->getTree();
     }
 
     public function findBySlug(string $slug): Category
@@ -37,7 +35,6 @@ class CategoryService
         }
 
         $category = $this->categoryRepository->create($data);
-        Cache::forget('categories:tree');
 
         return $category;
     }
@@ -53,7 +50,6 @@ class CategoryService
         }
 
         $category = $this->categoryRepository->update($id, $data);
-        Cache::forget('categories:tree');
 
         return $category;
     }

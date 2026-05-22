@@ -179,10 +179,5 @@ class Order extends Model
                 }
             }
         }
-
-        // SANGAT PENTING: Bersihkan cache produk agar UI Frontend langsung ter-refresh!
-        if (class_exists(\Illuminate\Support\Facades\Cache::class)) {
-            \Illuminate\Support\Facades\Cache::tags(['products'])->flush();
-        }
     }
 }

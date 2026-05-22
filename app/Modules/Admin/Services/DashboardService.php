@@ -56,6 +56,8 @@ class DashboardService
                     COUNT(*) FILTER (WHERE status = \'confirmed\')  AS confirmed,
                     COUNT(*) FILTER (WHERE status = \'processing\') AS processing,
                     COUNT(*) FILTER (WHERE status = \'shipped\')    AS shipped,
+                    COUNT(*) FILTER (WHERE status = \'cancelled\')  AS cancelled,
+                    COUNT(*) FILTER (WHERE status = \'completed\')  AS completed,
                     COUNT(*)                                         AS total
                 ')
                 ->first();
@@ -70,12 +72,23 @@ class DashboardService
                 ->where('is_active', true)
                 ->count();
 
+            // ── Total Products (all-time, not period-filtered) ───────────────────────
+            $totalProducts = $db->table('products')
+                ->whereNull('deleted_at')
+                ->where('status', '!=', 'archived')
+                ->count();
+
+            // ── Total Users (all-time, not period-filtered) ────────────────────────
+            $totalUsers = $db->table('users')
+                ->whereNull('deleted_at')
+                ->count();
+
             return [
                 'revenue' => [
-                    'current'    => (float) $revenue->current,
-                    'previous'   => (float) $prevRevenue,
-                    'growth_pct' => $this->growthPct($revenue->current, $prevRevenue),
-                    'order_count'=> (int) $revenue->order_count,
+                    'current'     => (float) $revenue->current,
+                    'previous'    => (float) $prevRevenue,
+                    'growth_pct'  => $this->growthPct($revenue->current, $prevRevenue),
+                    'order_count' => (int) $revenue->order_count,
                 ],
                 'new_users' => [
                     'current'    => $newUsers,
@@ -88,13 +101,17 @@ class DashboardService
                     'confirmed'  => (int) $orders->confirmed,
                     'processing' => (int) $orders->processing,
                     'shipped'    => (int) $orders->shipped,
+                    'cancelled'  => (int) $orders->cancelled,
+                    'completed'  => (int) $orders->completed,
                 ],
                 'inventory' => [
                     'low_stock'    => $lowStockCount,
                     'out_of_stock' => $outOfStockCount,
                 ],
-                'period'     => $period,
-                'updated_at' => now()->toISOString(),
+                'total_products' => $totalProducts,
+                'total_users'    => $totalUsers,
+                'period'         => $period,
+                'updated_at'     => now()->toISOString(),
             ];
         });
     }

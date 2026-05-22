@@ -82,8 +82,6 @@ class InventoryService
                 ])
                 ->log('stock_adjusted');
 
-            Cache::tags(['products'])->flush();
-
             return $variant->fresh('product');
         });
     }

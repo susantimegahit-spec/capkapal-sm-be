@@ -20,11 +20,7 @@ class ProductService
 
     public function listPublic(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
-        $cacheKey = 'products:list:' . md5(serialize($filters) . $perPage);
-
-        return Cache::tags(['products'])->remember($cacheKey, now()->addMinutes(15), fn() =>
-        $this->productRepository->listPublic($filters, $perPage)
-        );
+        return $this->productRepository->listPublic($filters, $perPage);
     }
 
     public function listAdmin(array $filters = [], int $perPage = 20): LengthAwarePaginator
@@ -35,11 +31,7 @@ class ProductService
 
     public function findBySlug(string $slug): Product
     {
-        $product = Cache::tags(['products'])->remember(
-            "products:detail:{$slug}",
-            now()->addHour(),
-            fn() => $this->productRepository->findBySlug($slug)
-        );
+        $product = $this->productRepository->findBySlug($slug);
 
         if (! $product) {
             abort(404, 'Produk tidak ditemukan.');
@@ -57,11 +49,7 @@ class ProductService
 
     public function getFeatured(int $limit = 8): \Illuminate\Database\Eloquent\Collection
     {
-        return Cache::tags(['products'])->remember(
-            "products:featured:{$limit}",
-            now()->addMinutes(15),
-            fn() => $this->productRepository->getFeatured($limit)
-        );
+        return $this->productRepository->getFeatured($limit);
     }
 
     // ── Create ────────────────────────────────────────────────────────────────
@@ -291,6 +279,6 @@ class ProductService
 
     public function flushCache(): void
     {
-        Cache::tags(['products'])->flush();
+        // Cache dihapus
     }
 }
