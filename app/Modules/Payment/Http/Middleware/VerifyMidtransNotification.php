@@ -7,16 +7,16 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class VerifyXenditWebhook
+class VerifyMidtransNotification
 {
     public function __construct(private readonly WebhookService $webhookService) {}
 
     public function handle(Request $request, Closure $next): Response
     {
         if (! $this->webhookService->verifySignature($request)) {
-            \Log::warning('Invalid Xendit webhook signature', [
+            \Log::warning('Invalid Midtrans notification signature', [
                 'ip'     => $request->ip(),
-                'header' => $request->header('X-Callback-Token') ? 'present' : 'missing',
+                'order_id' => $request->input('order_id', 'unknown'),
             ]);
 
             return response()->json(['message' => 'Unauthorized.'], 403);

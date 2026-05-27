@@ -27,6 +27,7 @@ class UpdateProductRequest extends FormRequest
             'status'                        => ['sometimes', new Enum(ProductStatus::class)],
             'is_featured'                   => ['boolean'],
             'meta'                          => ['nullable', 'array'],
+            'primary_image_url'             => ['nullable', 'string', 'max:2048'],
 
             // Tambahkan di dalam return [ ... ];
             'variants'                      => ['sometimes', 'array', 'min:1'],

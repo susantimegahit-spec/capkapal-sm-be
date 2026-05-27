@@ -11,22 +11,22 @@ class WebhookController extends Controller
     public function __construct(private readonly WebhookService $webhookService) {}
 
     /**
-     * POST /api/v1/webhooks/xendit
+     * POST /api/v1/webhooks/midtrans
      *
-     * Endpoint ini menerima semua jenis webhook dari Xendit:
-     * - Virtual Account payment
-     * - eWallet charge completion
+     * Endpoint ini menerima semua jenis notification dari Midtrans:
+     * - Virtual Account payment (bank_transfer)
+     * - eWallet charge (gopay, shopeepay)
      * - QRIS payment
-     * - Retail outlet payment
+     * - Retail outlet / CStore payment
      *
-     * Verifikasi signature sudah dilakukan di VerifyXenditWebhook middleware.
+     * Verifikasi signature sudah dilakukan di VerifyMidtransNotification middleware.
      * Response harus cepat (< 30s) — logika berat di-dispatch ke queue.
      */
-    public function handleXendit(Request $request): JsonResponse
+    public function handleMidtrans(Request $request): JsonResponse
     {
         $this->webhookService->handle($request);
 
-        // Xendit mengharapkan 200 OK secepat mungkin
+        // Midtrans mengharapkan 200 OK secepat mungkin
         return response()->json(['status' => 'received'], 200);
     }
 }

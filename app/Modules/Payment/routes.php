@@ -1,14 +1,14 @@
 <?php
 
 use App\Modules\Payment\Controllers\{PaymentController, WebhookController};
-use App\Modules\Payment\Http\Middleware\VerifyXenditWebhook;
+use App\Modules\Payment\Http\Middleware\VerifyMidtransNotification;
 use Illuminate\Support\Facades\Route;
 
-// ── Webhook — public, verifikasi via middleware HMAC ─────────────────────────
+// ── Webhook — public, verifikasi via middleware signature ─────────────────────
 Route::post(
-    '/webhooks/xendit',
-    [WebhookController::class, 'handleXendit']
-)->middleware(VerifyXenditWebhook::class);
+    '/webhooks/midtrans',
+    [WebhookController::class, 'handleMidtrans']
+)->middleware(VerifyMidtransNotification::class);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments/status/{orderId}',       [PaymentController::class, 'status']);

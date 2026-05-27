@@ -2,7 +2,7 @@
 
 namespace App\Modules\Payment\Services;
 
-use App\Modules\Payment\Jobs\ProcessXenditWebhook;
+use App\Modules\Payment\Jobs\ProcessMidtransNotification;
 use App\Modules\Payment\Models\PaymentLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -10,46 +10,59 @@ use Illuminate\Support\Facades\Log;
 class WebhookService
 {
     /**
-     * Entry point semua webhook dari Xendit.
+     * Entry point semua notification dari Midtrans.
      * Harus selesai dalam < 30 detik — langsung log + dispatch job.
      */
     public function handle(Request $request): void
     {
         $payload   = $request->all();
         $eventId   = $this->resolveEventId($payload);
-        $eventType = $this->resolveEventType($request, $payload);
+        $eventType = $this->resolveEventType($payload);
 
-        Log::info('Xendit webhook received', [
-            'event_id'   => $eventId,
-            'event_type' => $eventType,
+        Log::info('Midtrans notification received', [
+            'notification_id' => $eventId,
+            'event_type'      => $eventType,
+            'order_id'        => $payload['order_id'] ?? 'unknown',
         ]);
 
         // Idempotency: firstOrCreate mencegah duplikat processing
         [$log, $created] = $this->logWebhook($eventId, $eventType, $payload);
 
         if (! $created) {
-            Log::info('Webhook duplicate, skipping', ['xendit_event_id' => $eventId]);
+            Log::info('Notification duplicate, skipping', ['notification_id' => $eventId]);
             return; // Sudah pernah di-log — abaikan duplikat
         }
 
         // Dispatch job ke 'critical' queue — akan diproses oleh worker
-        ProcessXenditWebhook::dispatch($log->id)->onQueue('critical');
+        ProcessMidtransNotification::dispatch($log->id)->onQueue('critical');
     }
 
     /**
-     * Verifikasi X-Callback-Token dari Xendit.
+     * Verifikasi signature dari Midtrans.
+     * Signature: SHA-512(order_id + status_code + gross_amount + ServerKey)
      * Dipanggil dari middleware sebelum request masuk controller.
      */
     public function verifySignature(Request $request): bool
     {
-        $token          = $request->header('X-Callback-Token');
-        $expectedToken  = config('services.xendit.webhook_token');
+        $payload   = $request->all();
+        $serverKey = config('services.midtrans.server_key');
 
-        if (empty($token) || empty($expectedToken)) {
+        if (empty($serverKey)) {
             return false;
         }
 
-        return hash_equals($expectedToken, $token);
+        $orderId    = $payload['order_id']    ?? '';
+        $statusCode = $payload['status_code'] ?? '';
+        $grossAmount= $payload['gross_amount']?? '';
+        $signatureKey = $payload['signature_key'] ?? '';
+
+        if (empty($signatureKey) || empty($orderId)) {
+            return false;
+        }
+
+        $expectedSignature = hash('sha512', $orderId . $statusCode . $grossAmount . $serverKey);
+
+        return hash_equals($expectedSignature, $signatureKey);
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
@@ -58,7 +71,7 @@ class WebhookService
     {
         try {
             $log = PaymentLog::firstOrCreate(
-                ['xendit_event_id' => $eventId],
+                ['notification_id' => $eventId],
                 [
                     'event_type'  => $eventType,
                     'payload'     => $payload,
@@ -72,42 +85,31 @@ class WebhookService
         } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
             // Fallback: Jika terjadi race condition (sangat jarang) yang lolos dari firstOrCreate,
             // kita tangkap exception-nya lalu fetch data yang berhasil masuk.
-            $existing = PaymentLog::where('xendit_event_id', $eventId)->first();
+            $existing = PaymentLog::where('notification_id', $eventId)->first();
             return [$existing, false];
         }
     }
 
     private function resolveEventId(array $payload): string
     {
-        // Xendit mengirimkan 'id' di semua tipe webhook
-        return $payload['id']
-            ?? $payload['external_id']
-            // Fallback HARUS deterministik — tanpa komponen waktu.
-            // md5/sha256 dari payload saja, sehingga retry webhook yang sama
-            // menghasilkan event_id yang sama dan idempotency tetap terjaga.
-            ?? hash('sha256', json_encode($payload));
+        // Midtrans mengirimkan 'transaction_id' dan 'order_id' di semua notification
+        // Gunakan kombinasi keduanya untuk idempotency yang kuat
+        $transactionId = $payload['transaction_id'] ?? '';
+        $status        = $payload['transaction_status'] ?? '';
+
+        if ($transactionId && $status) {
+            return $transactionId . ':' . $status;
+        }
+
+        // Fallback HARUS deterministik — tanpa komponen waktu.
+        return hash('sha256', json_encode($payload));
     }
 
-    private function resolveEventType(Request $request, array $payload): string
+    private function resolveEventType(array $payload): string
     {
-        // Beberapa webhook Xendit punya header 'x-callback-token' dan body berbeda
-        // Kita deteksi dari struktur payload
-        if (isset($payload['payment_id'])) {
-            return 'payment.completed';
-        }
-        if (isset($payload['ewallet_transaction_id'])) {
-            return 'ewallet.payment.completed';
-        }
-        if (isset($payload['account_number'])) {
-            return 'virtual_account.payment.completed';
-        }
-        if (isset($payload['qr_id'])) {
-            return 'qr_code.payment.completed';
-        }
-        if (isset($payload['payment_code'])) {
-            return 'retail_outlet.payment.completed';
-        }
+        $transactionStatus = $payload['transaction_status'] ?? 'unknown';
+        $paymentType       = $payload['payment_type'] ?? 'unknown';
 
-        return $payload['event'] ?? 'unknown';
+        return "{$paymentType}.{$transactionStatus}";
     }
 }

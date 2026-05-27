@@ -15,9 +15,9 @@ interface PaymentGatewayInterface
     public function createRetailOutlet(Order $order, string $retailer): array;
     public function createFlatTesting(Order $order, string $provider);
 
-    public function getPaymentStatus(string $xenditId, string $method): array;
+    public function getPaymentStatus(string $gatewayId, string $method): array;
 
-    public function voidPayment(string $xenditId): bool;
+    public function voidPayment(string $gatewayId): bool;
 
-    public function createRefund(string $xenditPaymentId, float $amount, string $reason): array;
+    public function createRefund(string $transactionId, float $amount, string $reason): array;
 }

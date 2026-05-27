@@ -12,7 +12,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\{InteractsWithQueue, SerializesModels};
 use Illuminate\Support\Facades\{DB, Log};
 
-class ProcessXenditWebhook implements ShouldQueue
+class ProcessMidtransNotification implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -68,14 +68,14 @@ class ProcessXenditWebhook implements ShouldQueue
             throw new \RuntimeException('Invalid payload format');
         }
 
-        $xenditId  = $this->extractXenditId($payload);
+        $orderId = $this->extractOrderId($payload);
 
-        // Cari payment berdasarkan xendit_id dengan penguncian baris (row lock)
+        // Cari payment berdasarkan midtrans_order_id dengan penguncian baris (row lock)
         // untuk mencegah race condition / double processing.
-        $payment = Payment::where('xendit_id', $xenditId)->lockForUpdate()->first();
+        $payment = Payment::where('midtrans_order_id', $orderId)->lockForUpdate()->first();
 
         if (! $payment) {
-            Log::warning('Payment not found for webhook', ['xendit_id' => $xenditId]);
+            Log::warning('Payment not found for webhook', ['midtrans_order_id' => $orderId]);
             return; // Bukan payment kita — abaikan
         }
 
@@ -88,8 +88,8 @@ class ProcessXenditWebhook implements ShouldQueue
             return;
         }
 
-        $xenditStatus = $this->extractStatus($payload);
-        $newStatus    = $this->mapXenditStatus($xenditStatus);
+        $midtransStatus = $this->extractStatus($payload);
+        $newStatus      = $this->mapMidtransStatus($midtransStatus, $payload);
 
         $this->updatePayment($payment, $newStatus, $payload);
         $this->updateOrder($payment, $newStatus);
@@ -99,10 +99,10 @@ class ProcessXenditWebhook implements ShouldQueue
     private function updatePayment(Payment $payment, PaymentStatus $newStatus, array $payload): void
     {
         $payment->update([
-            'status'           => $newStatus,
-            'paid_at'          => $newStatus->isSuccessful() ? now() : null,
-            'xendit_payment_id'=> $payload['id'] ?? $payment->xendit_payment_id,
-            'xendit_metadata'  => array_merge($payment->xendit_metadata ?? [], $payload),
+            'status'                  => $newStatus,
+            'paid_at'                 => $newStatus->isSuccessful() ? now() : null,
+            'midtrans_transaction_id' => $payload['transaction_id'] ?? $payment->midtrans_transaction_id,
+            'gateway_metadata'        => array_merge($payment->gateway_metadata ?? [], $payload),
         ]);
     }
 
@@ -113,7 +113,7 @@ class ProcessXenditWebhook implements ShouldQueue
         if ($newStatus->isSuccessful()) {
             $order->transitionTo(
                 next  : OrderStatus::Confirmed,
-                notes : 'Pembayaran diterima dari Xendit.',
+                notes : 'Pembayaran diterima dari Midtrans.',
             );
         } elseif ($newStatus === PaymentStatus::Failed || $newStatus === PaymentStatus::Expired) {
             // Kembalikan stok jika payment gagal/expired
@@ -151,45 +151,37 @@ class ProcessXenditWebhook implements ShouldQueue
         }
     }
 
-    private function mapXenditStatus(string $xenditStatus): PaymentStatus
+    private function mapMidtransStatus(string $transactionStatus, array $payload): PaymentStatus
     {
-        return match (strtoupper($xenditStatus)) {
-            'PAID', 'COMPLETED', 'SUCCEEDED', 'SETTLED' => PaymentStatus::Paid,
-            'FAILED', 'CANCELED'                         => PaymentStatus::Failed,
-            'EXPIRED'                                    => PaymentStatus::Expired,
-            'VOIDED'                                     => PaymentStatus::Voided,
-            default                                      => PaymentStatus::Waiting,
+        $fraudStatus = $payload['fraud_status'] ?? 'accept';
+
+        return match (strtolower($transactionStatus)) {
+            'capture' => $fraudStatus === 'accept'
+                ? PaymentStatus::Paid
+                : PaymentStatus::Failed,
+            'settlement'            => PaymentStatus::Paid,
+            'deny', 'cancel'        => PaymentStatus::Failed,
+            'expire'                => PaymentStatus::Expired,
+            'pending'               => PaymentStatus::Waiting,
+            'refund', 'partial_refund' => PaymentStatus::Refunded,
+            default                 => PaymentStatus::Waiting,
         };
     }
 
-    private function extractXenditId(array $payload): string
+    private function extractOrderId(array $payload): string
     {
-        // Prioritaskan ID spesifik sesuai dengan jenis metode pembayaran
-        return $payload['callback_virtual_account_id'] // Untuk Virtual Account
-            ?? $payload['qr_id']                       // Untuk QRIS
-            ?? $payload['id']                          // Default (Retail Outlet / Event ID)
-            ?? $payload['reference_id']                // eWallet
-            ?? throw new \RuntimeException('Cannot extract Xendit ID from payload');
+        return $payload['order_id']
+            ?? throw new \RuntimeException('Cannot extract order_id from Midtrans payload');
     }
 
     private function extractStatus(array $payload): string
     {
-        // 1. Khusus Virtual Account:
-        // Jika webhook memiliki 'payment_id' dan 'callback_virtual_account_id',
-        // artinya pelanggan baru saja transfer (pembayaran sukses).
-        if (isset($payload['payment_id']) && isset($payload['callback_virtual_account_id'])) {
-            return 'PAID';
-        }
-
-        // 2. Untuk eWallet, QRIS, Retail Outlet yang memiliki key status eksplisit
-        return $payload['status']
-            ?? $payload['payment_status']
-            ?? 'UNKNOWN';
+        return $payload['transaction_status'] ?? 'unknown';
     }
 
     public function failed(\Throwable $e): void
     {
-        Log::critical('ProcessXenditWebhook job permanently failed', [
+        Log::critical('ProcessMidtransNotification job permanently failed', [
             'log_id' => $this->logId,
             'error'  => $e->getMessage(),
         ]);

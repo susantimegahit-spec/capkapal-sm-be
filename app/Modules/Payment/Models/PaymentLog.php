@@ -13,7 +13,7 @@ class PaymentLog extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'payment_id', 'xendit_event_id', 'event_type',
+        'payment_id', 'notification_id', 'event_type',
         'payload', 'status', 'error_message',
         'received_at', 'processed_at',
     ];

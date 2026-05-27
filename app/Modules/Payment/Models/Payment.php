@@ -13,11 +13,11 @@ class Payment extends Model
     use HasUuids;
 
     protected $fillable = [
-        'order_id', 'xendit_id', 'xendit_payment_id',
+        'order_id', 'midtrans_order_id', 'midtrans_transaction_id',
         'method', 'provider', 'status',
         'amount', 'currency',
         'payment_code', 'payment_url', 'qr_string',
-        'paid_at', 'expired_at', 'xendit_metadata',
+        'paid_at', 'expired_at', 'gateway_metadata',
     ];
 
     protected function casts(): array
@@ -28,7 +28,7 @@ class Payment extends Model
             'amount'           => 'decimal:2',
             'paid_at'          => 'datetime',
             'expired_at'       => 'datetime',
-            'xendit_metadata'  => 'array',
+            'gateway_metadata' => 'array',
         ];
     }
 

@@ -27,6 +27,7 @@ class StoreProductRequest extends FormRequest
             'meta'              => ['nullable', 'array'],
             'meta.seo_title'    => ['nullable', 'string', 'max:70'],
             'meta.seo_description' => ['nullable', 'string', 'max:160'],
+            'primary_image_url' => ['nullable', 'string', 'max:2048'],
 
             // Variants (wajib minimal 1)
             'variants'               => ['required', 'array', 'min:1'],

@@ -20,8 +20,8 @@ class CheckoutRequest extends FormRequest
             'phone'            => ['required', 'string', 'max:20'],
             'address'          => ['required', 'string', 'max:500'],
             'postal_code'      => ['required', 'string', 'max:10'],
-            'district'         => ['nullable', 'string', 'max:100'],
-            'village'          => ['nullable', 'string', 'max:100'],
+            'district'         => ['required', 'string', 'max:100'],
+            'village'          => ['required', 'string', 'max:100'],
 
             'province' => [
                 'required',

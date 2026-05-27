@@ -18,7 +18,7 @@ class Product extends Model
     protected $fillable = [
         'category_id', 'sku', 'name', 'slug',
         'description', 'short_description', 'base_price',
-        'status', 'is_featured', 'meta', 'attributes',
+        'status', 'is_featured', 'meta', 'attributes', 'primary_image_url',
     ];
 
     protected function casts(): array
@@ -122,8 +122,11 @@ class Product extends Model
 
     // ── Accessors ─────────────────────────────────────────────────────────────
 
-    public function getPrimaryImageUrlAttribute(): ?string
+    public function getPrimaryImageUrlAttribute($value): ?string
     {
+        if ($value) {
+            return $value;
+        }
         return $this->primaryImage?->url
             ? \Storage::url($this->primaryImage->url)
             : null;

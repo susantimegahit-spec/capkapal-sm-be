@@ -157,7 +157,7 @@ class CheckoutService
                 );
             }
 
-            // ── 13. Buat Payment Intent di Xendit ────────────────────────────
+            // ── 13. Buat Payment Intent di Midtrans ────────────────────────────
             $payment = $this->paymentService->createPaymentForOrder(
                 order    : $order,
                 method   : $data->payment_method,

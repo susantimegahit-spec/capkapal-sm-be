@@ -7,7 +7,9 @@ use App\Modules\Order\Models\Order;
 use App\Modules\Payment\Enums\{PaymentMethod, PaymentStatus};
 use App\Modules\Payment\Gateway\Contracts\PaymentGatewayInterface;
 use App\Modules\Payment\Models\Payment;
-use Illuminate\Support\Facades\{DB, Http, Log};
+use Illuminate\Support\Facades\{DB, Log};
+use Midtrans\Config as MidtransConfig;
+use Midtrans\Transaction;
 
 class PaymentService
 {
@@ -17,7 +19,7 @@ class PaymentService
 
     /**
      * Dipanggil dari CheckoutService di dalam DB::transaction().
-     * Membuat payment record + call Xendit API.
+     * Membuat payment record + call Midtrans Core API.
      */
     public function createPaymentForOrder(
         Order   $order,
@@ -26,7 +28,7 @@ class PaymentService
     ): array {
         $paymentMethod = PaymentMethod::from($method);
 
-        // Panggil Xendit sesuai metode
+        // Panggil Midtrans sesuai metode
         $gatewayResult = match ($paymentMethod) {
             PaymentMethod::VirtualAccount => $this->gateway->createVirtualAccount($order, $provider),
             PaymentMethod::Ewallet        => $this->gateway->createEwallet(
@@ -42,27 +44,27 @@ class PaymentService
 
         // Simpan payment record
         $payment = Payment::create([
-            'order_id'        => $order->id,
-            'xendit_id'       => $gatewayResult['xendit_id'],
-            'method'          => $paymentMethod,
-            'provider'        => $provider,
-            'status'          => PaymentStatus::Waiting,
-            'amount'          => $order->total,
-            'currency'        => 'IDR',
-            'payment_code'    => $gatewayResult['payment_code']  ?? null,
-            'payment_url'     => $gatewayResult['payment_url']   ?? null,
-            'qr_string'       => $gatewayResult['qr_string']     ?? null,
-            'expired_at'      => $gatewayResult['expired_at']
+            'order_id'                => $order->id,
+            'midtrans_order_id'       => $gatewayResult['midtrans_order_id'],
+            'method'                  => $paymentMethod,
+            'provider'                => $provider,
+            'status'                  => PaymentStatus::Waiting,
+            'amount'                  => $order->total,
+            'currency'                => 'IDR',
+            'payment_code'            => $gatewayResult['payment_code']  ?? null,
+            'payment_url'             => $gatewayResult['payment_url']   ?? null,
+            'qr_string'               => $gatewayResult['qr_string']     ?? null,
+            'expired_at'              => $gatewayResult['expired_at']
                 ? \Carbon\Carbon::parse($gatewayResult['expired_at'])
                 : now()->addDay(),
-            'xendit_metadata' => $gatewayResult['metadata']      ?? null,
+            'gateway_metadata'        => $gatewayResult['metadata']      ?? null,
         ]);
 
         return $payment->instructions;
     }
 
     /**
-     * Cek status pembayaran ke Xendit (untuk polling dari frontend).
+     * Cek status pembayaran (untuk polling dari frontend).
      */
     public function checkStatus(string $orderId, string $userId): array
     {
@@ -109,7 +111,7 @@ class PaymentService
                 throw new \DomainException('Order tidak bisa diretry.');
             }
 
-            // Hapus payment lama di dalam transaksi — jika Xendit gagal,
+            // Hapus payment lama di dalam transaksi — jika Midtrans gagal,
             // transaksi di-rollback dan record lama tetap ada di DB.
             $order->payment?->delete();
 
@@ -127,11 +129,15 @@ class PaymentService
             ->with(['order.items.variant']) // Load relasi untuk mengembalikan stok
             ->get();
 
-        $xenditSecretKey = config('services.xendit.secret_key');
+        $serverKey = config('services.midtrans.server_key');
 
-        if (empty($xenditSecretKey)) {
-            throw new \Exception('Xendit Secret Key belum dikonfigurasi di file .env');
+        if (empty($serverKey)) {
+            throw new \Exception('Midtrans Server Key belum dikonfigurasi di file .env');
         }
+
+        // Configure Midtrans for status checks
+        MidtransConfig::$serverKey    = $serverKey;
+        MidtransConfig::$isProduction = (bool) config('services.midtrans.is_production', false);
 
         $syncedCount = 0;
         $failedCount = 0;
@@ -139,47 +145,55 @@ class PaymentService
 
         foreach ($payments as $payment) {
             try {
-                $xenditStatus = null;
-                $method = $payment->method->value; // Pastikan ini menghasilkan string (contoh: 'ewallet', 'qris')
+                $midtransStatus = null;
 
-                // ── A. PENGECEKAN KHUSUS E-WALLET ──
-                if ($method === 'ewallet') {
-                    $response = Http::withBasicAuth($xenditSecretKey, '')
-                        ->get('https://api.xendit.co/ewallets/charges/' . $payment->xendit_id);
+                // ── A. Cek status via Midtrans API ──
+                if ($payment->midtrans_order_id) {
+                    try {
+                        $response = Transaction::status($payment->midtrans_order_id);
+                        $transactionStatus = $response->transaction_status ?? null;
+                        $fraudStatus       = $response->fraud_status ?? 'accept';
 
-                    if ($response->successful()) {
-                        $status = $response->json()['status']; // SUCCEEDED, FAILED, PENDING, VOIDED
-                        if ($status === 'SUCCEEDED') {
-                            $xenditStatus = 'PAID';
-                        } elseif (in_array($status, ['FAILED', 'VOIDED'])) {
-                            $xenditStatus = 'EXPIRED';
+                        if (in_array($transactionStatus, ['settlement', 'capture']) && $fraudStatus === 'accept') {
+                            $midtransStatus = 'PAID';
+                        } elseif (in_array($transactionStatus, ['deny', 'cancel'])) {
+                            $midtransStatus = 'FAILED';
+                        } elseif ($transactionStatus === 'expire') {
+                            $midtransStatus = 'EXPIRED';
                         }
-                    } else {
-                        // Jika gagal hit API E-wallet, catat & skip
-                        $failedCount++;
-                        continue;
+                    } catch (\Exception $e) {
+                        // Jika gagal hit API, cek berdasarkan waktu expired
+                        if ($payment->expired_at && $payment->expired_at->isPast()) {
+                            $midtransStatus = 'EXPIRED';
+                        } else {
+                            $failedCount++;
+                            continue;
+                        }
                     }
                 }
-                // ── B. PENGECEKAN VA, QRIS, RETAIL (Cek Waktu Expired) ──
+                // ── B. Fallback: Cek waktu expired ──
                 else {
                     if ($payment->expired_at && $payment->expired_at->isPast()) {
-                        $xenditStatus = 'EXPIRED';
+                        $midtransStatus = 'EXPIRED';
                     }
                 }
 
                 // Jika status masih null (belum kedaluwarsa & belum dibayar), abaikan
-                if ($xenditStatus === null) {
+                if ($midtransStatus === null) {
                     $unchangedCount++;
                     continue;
                 }
 
-                // ── 3. TERAPKAN LOGIKA PERUBAHAN DATABASE ──
-                DB::transaction(function () use ($payment, $xenditStatus, &$syncedCount) {
+                // ── 3. Terapkan logika perubahan database ──
+                DB::transaction(function () use ($payment, $midtransStatus, &$syncedCount) {
                     $order = $payment->order;
 
-                    // Kasus 1: Kadaluwarsa
-                    if ($xenditStatus === 'EXPIRED') {
-                        $payment->update(['status' => PaymentStatus::Expired]);
+                    // Kasus 1: Kadaluwarsa atau Gagal
+                    if (in_array($midtransStatus, ['EXPIRED', 'FAILED'])) {
+                        $payment->update(['status' => $midtransStatus === 'EXPIRED'
+                            ? PaymentStatus::Expired
+                            : PaymentStatus::Failed,
+                        ]);
 
                         // Kembalikan stok: urutkan deterministik, lock per baris
                         $items = $order->items->sortBy('product_variant_id');
@@ -200,16 +214,15 @@ class PaymentService
                         $syncedCount++;
                     }
                     // Kasus 2: Sudah Dibayar
-                    elseif ($xenditStatus === 'PAID') {
+                    elseif ($midtransStatus === 'PAID') {
                         $payment->update([
                             'status'  => PaymentStatus::Paid,
                             'paid_at' => now(),
                         ]);
 
-                        // 👇 GUNAKAN FUNGSI transitionTo BAWAAN MODEL ORDER ANDA 👇
                         $order->transitionTo(
                             OrderStatus::Confirmed,
-                            'Pembayaran terkonfirmasi (Sync Manual).'
+                            'Pembayaran terkonfirmasi (Sync Manual via Midtrans).'
                         );
 
                         $syncedCount++;
