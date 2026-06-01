@@ -220,6 +220,27 @@ class PaymentService
                             'paid_at' => now(),
                         ]);
 
+                        // Tambahkan poin: 1 Poin = Rp 1.000 (sebelum ongkir)
+                        $pointsEarned = (int) floor($order->subtotal / 1000);
+
+                        if ($pointsEarned > 0 && $order->user_id) {
+                            $user = $order->user;
+                            if ($user) {
+                                $user->increment('points', $pointsEarned);
+
+                                \App\Modules\Reward\Models\PointTransaction::create([
+                                    'user_id'        => $user->id,
+                                    'amount'         => $pointsEarned,
+                                    'type'           => 'EARN',
+                                    'description'    => "Poin dari transaksi pesanan #{$order->order_number}",
+                                    'reference_type' => get_class($order),
+                                    'reference_id'   => $order->id,
+                                ]);
+                            }
+                        }
+
+                        $order->update(['points_earned' => $pointsEarned]);
+
                         $order->transitionTo(
                             OrderStatus::Confirmed,
                             'Pembayaran terkonfirmasi (Sync Manual via Midtrans).'

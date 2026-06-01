@@ -19,6 +19,7 @@ class UserResource extends JsonResource
       'status'     => $this->status,
       'avatar_url' => $this->avatar_url,
       'roles'      => $this->getRoleNames(),
+      'points' => (int) $this->points,
       'is_email_verified' => ! is_null($this->email_verified_at),
       'profile'    => $this->whenLoaded('profile', fn() => new UserProfileResource($this->profile)),
       'orders_count' => $this->whenHas('orders_count'),

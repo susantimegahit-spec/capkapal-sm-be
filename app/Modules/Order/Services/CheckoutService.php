@@ -83,7 +83,10 @@ class CheckoutService
             $shippingFee  = $shipping['price'];
             $total        = max(0, $subtotal - $couponDiscount - $pointsDiscount + $shippingFee);
 
-            // ── 7. Buat Order ─────────────────────────────────────────────────
+            // ── 7. Hitung estimasi poin yang akan didapat ────────────────────
+            $pointsEarned = (int) floor($subtotal / 1000);
+
+            // ── 8. Buat Order ─────────────────────────────────────────────────
             $order = $this->orderRepository->create([
                 'user_id'          => $userId,
                 'order_number'     => $this->orderRepository->generateOrderNumber(),
@@ -95,6 +98,7 @@ class CheckoutService
                 'total'            => $total,
                 'coupon_code'      => $data->coupon_code,
                 'points_used'      => $data->points_used,
+                'points_earned'    => $pointsEarned,
                 'shipping_courier' => $data->shipping_courier,
                 'shipping_service' => $data->shipping_service,
                 'estimated_delivery' => $shipping['estimated_delivery'],
@@ -140,12 +144,22 @@ class CheckoutService
 
             // ── 11. Tandai coupon digunakan ───────────────────────────────────
             if ($couponResult) {
-                $this->couponService->markUsed(
-                    $couponResult['coupon']->id,
-                    $userId,
-                    $order->id,
-                    $couponDiscount,
-                );
+                $source = $couponResult['source'] ?? 'coupon';
+
+                if ($source === 'user_voucher') {
+                    // Voucher dari penukaran poin loyalty
+                    $this->couponService->markVoucherUsed(
+                        $couponResult['voucher']->id,
+                    );
+                } else {
+                    // Kupon promo dari admin
+                    $this->couponService->markUsed(
+                        $couponResult['coupon']->id,
+                        $userId,
+                        $order->id,
+                        $couponDiscount,
+                    );
+                }
             }
 
             // ── 12. Deduct reward points (jika digunakan) ─────────────────────

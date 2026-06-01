@@ -5,7 +5,10 @@ namespace App\Modules\Auth\Models;
 use App\Modules\Auth\Enums\UserStatus;
 use App\Modules\Auth\Enums\UserType;
 use App\Modules\Order\Models\Order;
+use App\Modules\Reward\Models\PointTransaction;
+use App\Modules\Reward\Models\Redemption;
 use App\Modules\Reward\Models\RewardPoint;
+use App\Modules\Reward\Models\UserVoucher;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -30,6 +33,7 @@ class User extends Authenticatable
     'email',
     'phone',
     'password',
+    'points',
     'user_type',
     'status',
     'avatar',
@@ -82,6 +86,21 @@ class User extends Authenticatable
   public function rewardPoint(): HasOne
   {
     return $this->hasOne(RewardPoint::class);
+  }
+
+  public function redemptions(): HasMany
+  {
+    return $this->hasMany(Redemption::class);
+  }
+
+  public function vouchers(): HasMany
+  {
+    return $this->hasMany(UserVoucher::class);
+  }
+
+  public function pointTransactions(): HasMany
+  {
+    return $this->hasMany(PointTransaction::class);
   }
 
   public function isActive(): bool

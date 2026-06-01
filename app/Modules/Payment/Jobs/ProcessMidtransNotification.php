@@ -6,6 +6,7 @@ use App\Modules\Order\Enums\OrderStatus;
 use App\Modules\Payment\Enums\PaymentStatus;
 use App\Modules\Payment\Events\{PaymentFailed, PaymentSucceeded};
 use App\Modules\Payment\Models\{Payment, PaymentLog};
+use App\Modules\Reward\Models\PointTransaction;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -111,6 +112,28 @@ class ProcessMidtransNotification implements ShouldQueue
         $order = $payment->order;
 
         if ($newStatus->isSuccessful()) {
+            // 1 Poin = Rp 1.000 dari belanja produk (sebelum ongkir)
+            $pointsEarned = (int) floor($order->subtotal / 1000);
+
+            if ($pointsEarned > 0 && $order->user_id) {
+                $user = $order->user;
+                if ($user) {
+                    $user->increment('points', $pointsEarned);
+
+                    PointTransaction::create([
+                        'user_id'        => $user->id,
+                        'amount'         => $pointsEarned,
+                        'type'           => 'EARN',
+                        'description'    => "Poin dari transaksi pesanan #{$order->order_number}",
+                        'reference_type' => get_class($order),
+                        'reference_id'   => $order->id,
+                    ]);
+                }
+            }
+
+            // Simpan jumlah poin yang didapat ke order
+            $order->update(['points_earned' => $pointsEarned]);
+
             $order->transitionTo(
                 next  : OrderStatus::Confirmed,
                 notes : 'Pembayaran diterima dari Midtrans.',
