@@ -87,18 +87,28 @@ class UserManagementService
             throw new \DomainException('Hanya superadmin yang dapat mengubah role administrator lain.');
         }
 
-        $allowedRoles = ['admin', 'editor', 'consumer', 'umkm', 'distributor', 'superadmin'];
+        $allowedRoles = ['admin', 'editor', 'consumer', 'umkm', 'distributor', 'superadmin', 'agen', 'user'];
 
         if (! in_array($role, $allowedRoles)) {
             throw new \InvalidArgumentException("Role tidak valid: {$role}");
         }
 
+        $oldRole = $user->getRoleNames()->first();
         $user->syncRoles([$role]);
+
+        // Sinkronkan user_type saat role berubah ke/dari agen
+        if ($role === 'agen') {
+            $user->update(['user_type' => 'agen']);
+        } elseif ($oldRole === 'agen' && $role !== 'agen') {
+            // Kembalikan ke 'user' jika sebelumnya agen dan sekarang bukan
+            $newUserType = in_array($role, ['admin', 'superadmin']) ? 'admin' : 'user';
+            $user->update(['user_type' => $newUserType]);
+        }
 
         activity('admin')
             ->performedOn($user)
             ->causedBy(User::find($actorId))
-            ->withProperties(['new_role' => $role])
+            ->withProperties(['new_role' => $role, 'old_role' => $oldRole])
             ->log('role_changed');
 
         return $user->fresh('roles');

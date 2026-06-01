@@ -28,6 +28,16 @@ class PointRedemptionController extends Controller
 
         // Check item type and enforce shipping_address for PHYSICAL
         $item = PointItem::findOrFail($request->point_item_id);
+
+        // Validasi eligible_for
+        $userType = $request->user()->user_type->value ?? $request->user()->user_type;
+        if ($item->eligible_for !== 'all' && $item->eligible_for !== $userType) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Item ini tidak tersedia untuk tipe akun Anda.'
+            ], 403);
+        }
+
         if ($item->type === 'PHYSICAL' && empty($request->shipping_address)) {
             return response()->json([
                 'success' => false,
@@ -63,8 +73,14 @@ class PointRedemptionController extends Controller
 
     public function getItems(Request $request)
     {
+        $userType = $request->user()->user_type->value ?? $request->user()->user_type;
+
         $items = PointItem::where('is_active', true)
             ->where('stock', '>', 0)
+            ->where(function ($query) use ($userType) {
+                $query->where('eligible_for', 'all')
+                      ->orWhere('eligible_for', $userType);
+            })
             ->get();
 
         return response()->json([
