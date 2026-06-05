@@ -3,6 +3,7 @@
 namespace App\Modules\Auth\Requests;
 
 use App\Modules\Auth\Enums\UserType;
+use App\Modules\Auth\Rules\TurnstileRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\{Enum, Password};
 
@@ -21,6 +22,7 @@ class RegisterRequest extends FormRequest
       'phone'     => ['nullable', 'string', 'max:20', 'unique:users,phone'],
       'password'  => ['required', 'confirmed', Password::min(8)->letters()->mixedCase()->numbers()],
       'user_type' => ['nullable', new Enum(UserType::class)],
+      'cf_turnstile_response' => ['required', 'string', new TurnstileRule()],
 
       // Conditional: wajib jika distributor
       'distributor_code'     => ['required_if:user_type,distributor', 'nullable', 'string', 'max:30'],
