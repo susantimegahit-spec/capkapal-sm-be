@@ -8,7 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -21,26 +21,26 @@ jobs:
         key: ${{ secrets.SERVER_SSH_KEY }}
         port: ${{ secrets.SERVER_PORT }}
         script: |
-          # Go to the application directory
-          cd /www/wwwroot/your_domain.com
-          
+          # Go to the application directorFy
+          cd /www/wwwroot/api-garamcapkapal.thoriqagfi.com
+
           # Pull the latest changes from the repository
           git pull origin develop
-          
+
           # Build the Docker image (for app, horizon, scheduler)
           docker compose build
-          
+
           # Start or update the containers in detached mode
           docker compose up -d
-          
+
           # Run database migrations inside the running 'app' container
           docker compose exec -T app php artisan migrate --force
-          
+
           # Clear and cache routes, config, and views
           docker compose exec -T app php artisan optimize:clear
           docker compose exec -T app php artisan config:cache
           docker compose exec -T app php artisan route:cache
           docker compose exec -T app php artisan view:cache
-          
+
           # Restart horizon via its dedicated container or using the command
           docker compose exec -T app php artisan horizon:terminate

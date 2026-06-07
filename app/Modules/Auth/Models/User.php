@@ -4,6 +4,7 @@ namespace App\Modules\Auth\Models;
 
 use App\Modules\Auth\Enums\UserStatus;
 use App\Modules\Auth\Enums\UserType;
+use App\Modules\Auth\Notifications\ResetPasswordNotification;
 use App\Modules\Order\Models\Order;
 use App\Modules\Reward\Models\PointTransaction;
 use App\Modules\Reward\Models\Redemption;
@@ -101,6 +102,13 @@ class User extends Authenticatable
   public function pointTransactions(): HasMany
   {
     return $this->hasMany(PointTransaction::class);
+  }
+
+  // ── Password Reset ────────────────────────────────────────────────────────
+
+  public function sendPasswordResetNotification($token): void
+  {
+    $this->notify(new ResetPasswordNotification($token));
   }
 
   public function isActive(): bool
