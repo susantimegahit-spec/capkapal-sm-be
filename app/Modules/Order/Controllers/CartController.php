@@ -79,6 +79,14 @@ class CartController extends Controller
         return $this->success(new CartResource($cart), 'Kupon dihapus.');
     }
 
+    // DELETE /api/v1/cart
+    public function clear(Request $request): JsonResponse
+    {
+        $cart = $this->cartService->clearCart($request->user()->id);
+
+        return $this->success(new CartResource($cart), 'Keranjang berhasil dikosongkan.');
+    }
+
     // GET /api/v1/cart/shipping-options
     public function shippingOptions(Request $request, ShippingService $shippingService): JsonResponse
     {

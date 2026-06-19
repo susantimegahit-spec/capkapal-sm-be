@@ -131,6 +131,20 @@ class CartService
         return $cart->fresh('items.variant.product.primaryImage');
     }
 
+    // ── Clear Cart ──────────────────────────────────────────────────────────────
+
+    public function clearCart(string $userId): Cart
+    {
+        return DB::transaction(function () use ($userId) {
+            $cart = $this->getCart($userId);
+
+            $cart->items()->delete();
+            $cart->update(['coupon_code' => null, 'coupon_discount' => 0]);
+
+            return $cart->fresh('items.variant.product.primaryImage');
+        });
+    }
+
     // ── Validate Cart (dipanggil sebelum checkout) ────────────────────────────
 
     public function validateForCheckout(Cart $cart, ?array $selectedItemIds = null): void

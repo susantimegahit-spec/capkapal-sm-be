@@ -12,6 +12,7 @@ Route::middleware(['auth:sanctum', 'role:user|agen'])->prefix('cart')->group(fun
     Route::post('/coupon',              [CartController::class, 'applyCoupon']);
     Route::delete('/coupon',            [CartController::class, 'removeCoupon']);
     Route::get('/shipping-options',     [CartController::class, 'shippingOptions']);
+    Route::delete('/',                   [CartController::class, 'clear']);
 });
 
 // Checkout
