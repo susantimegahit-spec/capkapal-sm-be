@@ -58,10 +58,10 @@ class ShippingService
     {
         // Stub — akan diisi API call ke RajaOngkir
         return [
-            ['courier' => 'jne',     'service' => 'regular', 'price' => 18000, 'etd' => '3-5'],
-            ['courier' => 'jne',     'service' => 'yes', 'price' => 35000, 'etd' => '1-2'],
-            ['courier' => 'jnt',     'service' => 'regular', 'price' => 16000, 'etd' => '3-5'],
-            ['courier' => 'sicepat', 'service' => 'regular', 'price' => 17000, 'etd' => '2-4'],
+            ['courier' => 'jne',     'service' => 'regular', 'price' => 0, 'etd' => '3-5'],
+            ['courier' => 'jne',     'service' => 'yes', 'price' => 0, 'etd' => '1-2'],
+            ['courier' => 'jnt',     'service' => 'regular', 'price' => 0, 'etd' => '3-5'],
+            ['courier' => 'sicepat', 'service' => 'regular', 'price' => 0, 'etd' => '2-4'],
         ];
     }
 
