@@ -4,6 +4,7 @@ use App\Modules\Admin\Controllers\{
     AuditLogController,
     DashboardController,
     InventoryController,
+    ManualPaymentController,
     OrderManagementController,
     ReportController,
     UserManagementController,
@@ -72,3 +73,11 @@ Route::prefix('users')->group(function () {
 // ── Audit Logs (admin only) ───────────────────────────────────────────────────
 Route::get('/audit-logs', [AuditLogController::class, 'index'])
     ->middleware('role:admin');
+
+// ── Manual Payment Verification (admin only) ──────────────────────────────────
+Route::prefix('manual-payments')->middleware('role:admin')->group(function () {
+    Route::get('/',                          [ManualPaymentController::class, 'index']);
+    Route::post('/{paymentId}/approve',      [ManualPaymentController::class, 'approve']);
+    Route::post('/{paymentId}/reject',       [ManualPaymentController::class, 'reject']);
+    Route::post('/expire-overdue',           [ManualPaymentController::class, 'expireOverdue']);
+});

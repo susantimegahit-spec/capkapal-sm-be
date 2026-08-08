@@ -15,6 +15,8 @@ Route::prefix('v1')->group(function () {
     require app_path('Modules/Product/routes.php');
     require app_path('Modules/CMS/routes.php');
     require app_path('Modules/Promo/routes.php');
+    require app_path('Modules/Forum/routes.php');
+    require app_path('Modules/Career/routes.php');
   });
 
   // ── Webhook Routes (No Auth, HMAC verified internally) ──────────

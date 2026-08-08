@@ -3,7 +3,8 @@
 namespace App\Modules\Payment\Controllers;
 
 use App\Core\Traits\ApiResponseTrait;
-use App\Modules\Payment\Services\PaymentService;
+use App\Modules\Payment\Requests\UploadPaymentProofRequest;
+use App\Modules\Payment\Services\{ManualPaymentService, PaymentService};
 use Illuminate\Http\{JsonResponse, Request};
 use Illuminate\Routing\Controller;
 
@@ -11,7 +12,10 @@ class PaymentController extends Controller
 {
     use ApiResponseTrait;
 
-    public function __construct(private readonly PaymentService $paymentService) {}
+    public function __construct(
+        private readonly PaymentService       $paymentService,
+        private readonly ManualPaymentService $manualPaymentService,
+    ) {}
 
     // GET /api/v1/payments/status/{orderId}
     public function status(Request $request, string $orderId): JsonResponse
@@ -50,6 +54,21 @@ class PaymentController extends Controller
         return $this->success(
             $result,
             "Sinkronisasi selesai. {$result['synced']} terupdate, {$result['failed']} gagal."
+        );
+    }
+
+    // POST /api/v1/payments/{orderNumber}/upload-proof
+    public function uploadProof(UploadPaymentProofRequest $request, string $orderNumber): JsonResponse
+    {
+        $payment = $this->manualPaymentService->uploadProof(
+            orderNumber: $orderNumber,
+            userId     : $request->user()->id,
+            file       : $request->file('payment_proof'),
+        );
+
+        return $this->success(
+            $payment->instructions,
+            'Bukti pembayaran berhasil diunggah. Menunggu verifikasi admin.'
         );
     }
 }

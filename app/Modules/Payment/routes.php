@@ -13,6 +13,7 @@ Route::post(
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/payments/status/{orderId}',       [PaymentController::class, 'status']);
     Route::post('/payments/{orderNumber}/retry',   [PaymentController::class, 'retry']);
+    Route::post('/payments/{orderNumber}/upload-proof', [PaymentController::class, 'uploadProof']);
 
     // Hanya admin yang boleh melakukan sync massal
     Route::prefix('admin')->middleware('role:admin')->group(function () {

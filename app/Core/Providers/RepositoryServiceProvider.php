@@ -19,6 +19,10 @@ use App\Modules\Order\Repositories\Eloquent\OrderRepository;
 use App\Modules\Payment\Gateway\Contracts\PaymentGatewayInterface;
 use App\Modules\Payment\Gateway\MidtransGateway;
 
+// Career
+use App\Modules\Career\Repositories\Contracts\CareerRepositoryInterface;
+use App\Modules\Career\Repositories\Eloquent\CareerRepository;
+
 class RepositoryServiceProvider extends ServiceProvider
 {
   public function register(): void
@@ -27,6 +31,6 @@ class RepositoryServiceProvider extends ServiceProvider
     $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
     $this->app->bind(OrderRepositoryInterface::class, OrderRepository::class);
     $this->app->bind(PaymentGatewayInterface::class, MidtransGateway::class);
-    // Tambahkan binding lainnya di sini...
+    $this->app->bind(CareerRepositoryInterface::class, CareerRepository::class);
   }
 }

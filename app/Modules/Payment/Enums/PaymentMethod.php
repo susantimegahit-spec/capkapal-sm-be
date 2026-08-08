@@ -10,4 +10,5 @@ enum PaymentMethod: string
     case CreditCard     = 'credit_card';
     case RetailOutlet   = 'retail_outlet';
     case Flat           = 'flat';
+    case ManualQris     = 'manual_qris';
 }

@@ -48,7 +48,7 @@ class CheckoutRequest extends FormRequest
             'shipping_service' => ['required', 'string', 'max:20'],
 
             // Payment
-            'payment_method'   => ['required', 'string', 'in:virtual_account,ewallet,qris,credit_card,retail_outlet,flat'],
+            'payment_method'   => ['required', 'string', 'in:virtual_account,ewallet,qris,credit_card,retail_outlet,flat,manual_qris'],
             'payment_provider' => ['nullable', 'string', 'max:30'],
 
             // Optional

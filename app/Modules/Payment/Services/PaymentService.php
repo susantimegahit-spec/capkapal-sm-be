@@ -28,6 +28,27 @@ class PaymentService
     ): array {
         $paymentMethod = PaymentMethod::from($method);
 
+        // Manual QRIS: buat payment record tanpa memanggil gateway API
+        if ($paymentMethod === PaymentMethod::ManualQris) {
+            // Generate kode unik 3 digit (100-999) untuk memudahkan verifikasi admin
+            $uniqueCode = random_int(100, 999);
+
+            $payment = Payment::create([
+                'order_id'           => $order->id,
+                'midtrans_order_id'  => null,
+                'method'             => $paymentMethod,
+                'provider'           => 'manual',
+                'status'             => PaymentStatus::Waiting,
+                'amount'             => $order->total,
+                'unique_code'        => $uniqueCode,
+                'currency'           => 'IDR',
+                'expired_at'         => now()->addDay(),
+                'gateway_metadata'   => ['type' => 'manual_qris'],
+            ]);
+
+            return $payment->instructions;
+        }
+
         // Panggil Midtrans sesuai metode
         $gatewayResult = match ($paymentMethod) {
             PaymentMethod::VirtualAccount => $this->gateway->createVirtualAccount($order, $provider),
@@ -40,6 +61,7 @@ class PaymentService
             PaymentMethod::RetailOutlet   => $this->gateway->createRetailOutlet($order, $provider),
             PaymentMethod::Flat           => $this->gateway->createFlatTesting($order, $provider),
             PaymentMethod::CreditCard     => throw new \RuntimeException('Credit card belum diimplementasi.'),
+            default                       => throw new \RuntimeException("Metode pembayaran {$method} tidak didukung."),
         };
 
         // Simpan payment record
@@ -124,9 +146,10 @@ class PaymentService
      */
     public function syncAllPendingPayments(): array
     {
-        // 1. Ambil semua payment yang statusnya masih 'Waiting'
+        // Ambil semua payment Waiting KECUALI manual_qris (yang diverifikasi oleh admin)
         $payments = Payment::where('status', PaymentStatus::Waiting)
-            ->with(['order.items.variant']) // Load relasi untuk mengembalikan stok
+            ->where('method', '!=', PaymentMethod::ManualQris->value)
+            ->with(['order.items.variant'])
             ->get();
 
         $serverKey = config('services.midtrans.server_key');
