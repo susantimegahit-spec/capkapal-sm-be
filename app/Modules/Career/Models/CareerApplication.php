@@ -43,7 +43,7 @@ class CareerApplication extends Model
     public function getResumeUrlAttribute(): ?string
     {
         return $this->resume_path
-            ? \Storage::disk('s3')->url($this->resume_path)
+            ? asset('storage/' . $this->resume_path)
             : null;
     }
 }

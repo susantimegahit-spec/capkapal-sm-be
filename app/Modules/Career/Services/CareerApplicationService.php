@@ -14,10 +14,10 @@ class CareerApplicationService
 
     public function submit(Career $career, array $data, UploadedFile $resume): CareerApplication
     {
-        // Upload resume ke S3
+        // Upload resume ke local public storage
         $resumePath = $resume->store(
             path   : "careers/{$career->id}/resumes",
-            options: 's3'
+            options: 'public'
         );
 
         return $career->applications()->create([
