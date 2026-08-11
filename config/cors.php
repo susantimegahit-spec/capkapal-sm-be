@@ -23,6 +23,7 @@ return [
         'https://dev.garamcapkapal.com', // Domain frontend production
         'http://localhost:3000',                // Frontend lokal (Next.js)
         'http://127.0.0.1:3000',                // IP Lokal alternatif
+        'https://susanti-megah-fe.vercel.app'
     ],
 
     'allowed_origins_patterns' => [],
