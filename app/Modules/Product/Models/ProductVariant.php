@@ -12,7 +12,7 @@ class ProductVariant extends Model
 
     protected $fillable = [
         'product_id', 'name', 'sku', 'price',
-        'price_distributor', 'price_umkm', 'stock',
+        'price_distributor', 'stock',
         'low_stock_threshold', 'weight', 'attributes',
         'is_active', 'sort_order',
     ];
@@ -22,7 +22,6 @@ class ProductVariant extends Model
         return [
             'price'              => 'decimal:2',
             'price_distributor'  => 'decimal:2',
-            'price_umkm'         => 'decimal:2',
             'weight'             => 'decimal:2',
             'attributes'         => 'array',
             'is_active'          => 'boolean',
@@ -55,8 +54,7 @@ class ProductVariant extends Model
     public function getPriceForUserType(string $userType): float
     {
         return (float) match ($userType) {
-            'distributor' => $this->price_distributor ?? $this->price,
-            'umkm'        => $this->price_umkm        ?? $this->price,
+            'agen'        => $this->price_distributor ?? $this->price,
             default       => $this->price,
         };
     }

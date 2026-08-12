@@ -30,8 +30,11 @@ class PaymentService
 
         // Manual QRIS: buat payment record tanpa memanggil gateway API
         if ($paymentMethod === PaymentMethod::ManualQris) {
-            // Generate kode unik 3 digit (100-999) untuk memudahkan verifikasi admin
-            $uniqueCode = random_int(100, 999);
+            // Generate kode unik berdasarkan urutan pesanan hari ini (pelanggan pertama = 1, kedua = 2, dst.)
+            $uniqueCode = Order::whereDate('created_at', today())->count();
+            if ($uniqueCode === 0) {
+                $uniqueCode = 1; // Fallback just in case
+            }
 
             $payment = Payment::create([
                 'order_id'           => $order->id,

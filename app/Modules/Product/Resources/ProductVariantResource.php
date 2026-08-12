@@ -17,7 +17,7 @@ class ProductVariantResource extends JsonResource
 
     public function toArray(Request $request): array
     {
-        return [
+        $data = [
             'id'         => $this->id,
             'name'       => $this->name,
             'sku'        => $this->sku,
@@ -29,5 +29,13 @@ class ProductVariantResource extends JsonResource
             'is_low_stock'   => $this->isLowStock(),
             'is_out_of_stock' => $this->isOutOfStock(),
         ];
+
+        if ($request->routeIs('admin.*')) {
+            // For admin edit pages, return the raw database prices
+            $data['price'] = $this->price;
+            $data['price_distributor'] = $this->price_distributor;
+        }
+
+        return $data;
     }
 }

@@ -37,7 +37,6 @@ class StoreProductRequest extends FormRequest
             'variants.*.stock'       => ['required', 'integer', 'min:0'],
             'variants.*.weight'      => ['nullable', 'numeric', 'min:0'],
             'variants.*.price_distributor' => ['nullable', 'numeric', 'min:0'],
-            'variants.*.price_umkm'        => ['nullable', 'numeric', 'min:0'],
             'variants.*.attributes'        => ['nullable', 'array'],
 
             // Images

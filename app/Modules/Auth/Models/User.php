@@ -5,6 +5,8 @@ namespace App\Modules\Auth\Models;
 use App\Modules\Auth\Enums\UserStatus;
 use App\Modules\Auth\Enums\UserType;
 use App\Modules\Auth\Notifications\ResetPasswordNotification;
+use App\Modules\Auth\Notifications\VerifyEmailNotification;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Modules\Order\Models\Order;
 use App\Modules\Reward\Models\PointTransaction;
 use App\Modules\Reward\Models\Redemption;
@@ -20,7 +22,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
   use HasApiTokens, HasFactory, HasRoles, HasUuids, Notifiable, SoftDeletes;
 
@@ -109,6 +111,25 @@ class User extends Authenticatable
   public function sendPasswordResetNotification($token): void
   {
     $this->notify(new ResetPasswordNotification($token));
+  }
+
+  // ── Email Verification ────────────────────────────────────────────────────
+
+  public function sendEmailVerificationNotification(): void
+  {
+    $token = \Illuminate\Support\Str::random(64);
+
+    \Illuminate\Support\Facades\DB::table('email_verification_tokens')->updateOrInsert(
+      ['email' => $this->email],
+      ['token' => hash('sha256', $token), 'created_at' => now()]
+    );
+
+    $this->notify(new VerifyEmailNotification($token));
+  }
+
+  public function getEmailForVerification(): string
+  {
+    return $this->email;
   }
 
   public function isActive(): bool

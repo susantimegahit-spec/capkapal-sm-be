@@ -9,7 +9,7 @@ use App\Modules\Auth\Events\{UserLoggedIn, UserRegistered};
 use App\Modules\Auth\Models\User;
 use App\Modules\Auth\Repositories\Contracts\UserRepositoryInterface;
 use Illuminate\Auth\Events\PasswordReset;
-use Illuminate\Support\Facades\{Hash, Password};
+use Illuminate\Support\Facades\{DB, Hash, Password};
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Arr;
 
@@ -56,9 +56,7 @@ class AuthService
     // Dispatch event → sends verification email, reward setup, etc.
     event(new UserRegistered($user, referredBy: $referredBy));
 
-    $tokenData = $this->tokenService->issueToken($user);
-
-    return compact('user', 'tokenData');
+    return compact('user');
   }
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -79,11 +77,11 @@ class AuthService
       ]);
     }
 
-//    if (! $user->hasVerifiedEmail()) {
-//      throw ValidationException::withMessages([
-//        'email' => ['Email belum diverifikasi. Cek inbox Anda.'],
-//      ]);
-//    }
+    if (! $user->hasVerifiedEmail()) {
+      throw ValidationException::withMessages([
+        'email' => ['Email belum diverifikasi. Silakan cek inbox Anda.'],
+      ]);
+    }
 
     event(new UserLoggedIn($user));
 
@@ -147,6 +145,67 @@ class AuthService
         'token' => [__($status)],
       ]);
     }
+  }
+
+  // ── Verify Email ──────────────────────────────────────────────────────────
+
+  public function verifyEmail(string $token, string $email): void
+  {
+    $record = DB::table('email_verification_tokens')
+      ->where('email', $email)
+      ->first();
+
+    if (! $record || ! hash_equals($record->token, hash('sha256', $token))) {
+      throw ValidationException::withMessages([
+        'token' => ['Token verifikasi tidak valid.'],
+      ]);
+    }
+
+    // Check if token has expired (default 60 minutes)
+    $expireMinutes = config('auth.verification.expire', 60);
+    if (now()->diffInMinutes($record->created_at) > $expireMinutes) {
+      throw ValidationException::withMessages([
+        'token' => ['Token verifikasi sudah kedaluwarsa. Silakan minta link verifikasi baru.'],
+      ]);
+    }
+
+    $user = $this->userRepository->findByEmail($email);
+
+    if (! $user) {
+      throw ValidationException::withMessages([
+        'email' => ['Email tidak ditemukan.'],
+      ]);
+    }
+
+    if ($user->hasVerifiedEmail()) {
+      // Already verified, just clean up token
+      DB::table('email_verification_tokens')->where('email', $email)->delete();
+      return;
+    }
+
+    $user->forceFill(['email_verified_at' => now()])->save();
+
+    DB::table('email_verification_tokens')->where('email', $email)->delete();
+  }
+
+  // ── Resend Verification Email ─────────────────────────────────────────────
+
+  public function resendVerificationEmail(string $email): void
+  {
+    $user = $this->userRepository->findByEmail($email);
+
+    if (! $user) {
+      // Silent return to prevent email enumeration
+      return;
+    }
+
+    if ($user->hasVerifiedEmail()) {
+      throw ValidationException::withMessages([
+        'email' => ['Email sudah terverifikasi. Silakan login.'],
+      ]);
+    }
+
+    $user->sendEmailVerificationNotification();
   }
 
   // ── Update Profile ────────────────────────────────────────────────────────

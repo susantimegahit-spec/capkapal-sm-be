@@ -18,19 +18,16 @@ class AuthController extends Controller
     private readonly AuthService $authService
   ) {}
 
-  // ── POST /api/v1/auth/register ────────────────────────────────────────────
+  // ── POST /api/v1/auth/register ──────────────────────────────────────────
   public function register(RegisterRequest $request): JsonResponse
   {
     $data = RegisterData::from($request->validated());
 
-    ['user' => $user, 'tokenData' => $tokenData] = $this->authService->register($data);
+    ['user' => $user] = $this->authService->register($data);
 
     return $this->created([
-      'user'       => new UserResource($user),
-      'token'      => $tokenData['token'],
-      'token_type' => $tokenData['token_type'],
-      'expires_at' => $tokenData['expires_at'],
-    ], 'Registrasi berhasil.');
+      'user' => new UserResource($user),
+    ], 'Registrasi berhasil. Silakan cek email Anda untuk verifikasi.');
   }
 
   // ── POST /api/v1/auth/login ───────────────────────────────────────────────
@@ -176,5 +173,29 @@ class AuthController extends Controller
     );
 
     return $this->success(null, 'Password berhasil direset. Silakan login.');
+  }
+
+  // ── GET /api/v1/auth/verify-email/{token} ───────────────────────────────
+  public function verifyEmail(Request $request, string $token): JsonResponse
+  {
+    $request->validate([
+      'email' => ['required', 'email'],
+    ]);
+
+    $this->authService->verifyEmail($token, $request->email);
+
+    return $this->success(null, 'Email berhasil diverifikasi. Silakan login.');
+  }
+
+  // ── POST /api/v1/auth/resend-verification ──────────────────────────────
+  public function resendVerificationEmail(Request $request): JsonResponse
+  {
+    $request->validate([
+      'email' => ['required', 'email'],
+    ]);
+
+    $this->authService->resendVerificationEmail($request->email);
+
+    return $this->success(null, 'Link verifikasi telah dikirim ke email Anda.');
   }
 }
