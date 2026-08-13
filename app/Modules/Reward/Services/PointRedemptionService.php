@@ -32,6 +32,18 @@ class PointRedemptionService
                 throw new Exception("Stok item habis.");
             }
 
+            // Validasi Limit Penukaran (max_redeem)
+            if (!is_null($item->max_redeem)) {
+                $userRedemptionCount = Redemption::where('user_id', $user->id)
+                    ->where('point_item_id', $item->id)
+                    ->where('status', '!=', 'REJECTED')
+                    ->count();
+
+                if ($userRedemptionCount >= $item->max_redeem) {
+                    throw new Exception("Anda sudah mencapai batas maksimum penukaran voucher ini");
+                }
+            }
+
             // 4. Potong poin & stok
             $user->points -= $item->point_cost;
             $user->save();

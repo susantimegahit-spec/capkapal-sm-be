@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 
 #[Fillable([
     'name', 'type', 'stock', 'point_cost', 
-    'discount_type', 'discount_value', 'expiry_days', 'is_active', 'eligible_for'
+    'discount_type', 'discount_value', 'expiry_days', 'is_active', 'eligible_for', 'max_redeem'
 ])]
 class PointItem extends Model
 {

@@ -60,7 +60,8 @@ class AdminRedemptionController extends Controller
             'discount_value' => 'nullable|numeric|min:0',
             'expiry_days' => 'nullable|integer|min:1',
             'is_active' => 'boolean',
-            'eligible_for' => 'sometimes|in:all,user,agen'
+            'eligible_for' => 'sometimes|in:all,user,agen',
+            'max_redeem' => 'nullable|integer|min:1'
         ]);
 
         $item = PointItem::create($request->all());
@@ -80,7 +81,8 @@ class AdminRedemptionController extends Controller
             'discount_value' => 'nullable|numeric|min:0',
             'expiry_days' => 'nullable|integer|min:1',
             'is_active' => 'boolean',
-            'eligible_for' => 'sometimes|in:all,user,agen'
+            'eligible_for' => 'sometimes|in:all,user,agen',
+            'max_redeem' => 'nullable|integer|min:1'
         ]);
 
         $item->update($request->all());
