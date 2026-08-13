@@ -26,12 +26,12 @@ class ResetPasswordNotification extends Notification implements ShouldQueue
     $expireMinutes = config('auth.passwords.users.expire', 60);
 
     return (new MailMessage)
-      ->subject('Reset Password — ' . config('app.name'))
+      ->subject('Reset Password — ' . "Garam Capkapal")
       ->view('emails.auth.reset-password', [
         'user'          => $notifiable,
         'url'           => $url,
         'expireMinutes' => $expireMinutes,
-        'appName'       => config('app.name', 'Garam Cap Kapal'),
+        'appName'       => "Garam Capkapal",
       ]);
   }
 

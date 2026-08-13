@@ -26,12 +26,12 @@ class VerifyEmailNotification extends Notification implements ShouldQueue
     $expireMinutes = config('auth.verification.expire', 60);
 
     return (new MailMessage)
-      ->subject('Verifikasi Email — ' . config('app.name'))
+      ->subject('Verifikasi Email — ' . "Garam Capkapal")
       ->view('emails.auth.verify-email', [
         'user'          => $notifiable,
         'url'           => $url,
         'expireMinutes' => $expireMinutes,
-        'appName'       => config('app.name', 'Garam Cap Kapal'),
+        'appName'       => "Garam Capkapal",
       ]);
   }
 
