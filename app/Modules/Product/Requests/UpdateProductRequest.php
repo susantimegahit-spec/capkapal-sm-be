@@ -37,6 +37,7 @@ class UpdateProductRequest extends FormRequest
             'variants.*.price'              => ['required_with:variants', 'numeric', 'min:0'],
             'variants.*.stock'              => ['required_with:variants', 'integer', 'min:0'],
             'variants.*.weight'             => ['nullable', 'numeric', 'min:0'],
+            'variants.*.price_distributor'  => ['nullable', 'numeric', 'min:0'],
             'variants.*.attributes'         => ['nullable', 'array'],
         ];
     }
