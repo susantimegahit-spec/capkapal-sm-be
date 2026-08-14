@@ -23,6 +23,9 @@ class UpdateProfileRequest extends FormRequest
             'date_of_birth' => ['sometimes', 'nullable', 'date', 'before:today'],
             'gender'      => ['sometimes', 'nullable', 'in:male,female,other'],
             'company_name' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'distributor_code' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'umkm_registration_no' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'umkm_registration' => ['sometimes', 'nullable', 'string', 'max:50'],
         ];
     }
 }

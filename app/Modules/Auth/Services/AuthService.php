@@ -221,7 +221,13 @@ class AuthService
       'company_name',
       'date_of_birth',
       'gender',
+      'distributor_code',
+      'umkm_registration_no',
     ]));
+
+    if (isset($data['umkm_registration']) && !empty($data['umkm_registration'])) {
+      $profileData['umkm_registration_no'] = $data['umkm_registration'];
+    }
 
     if (! empty($userData)) {
       $this->userRepository->update($user->id, $userData);
