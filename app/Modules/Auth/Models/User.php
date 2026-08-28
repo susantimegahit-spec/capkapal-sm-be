@@ -72,6 +72,11 @@ class User extends Authenticatable implements MustVerifyEmail
     return $this->hasOne(UserProfile::class);
   }
 
+  public function applicantProfile(): HasOne
+  {
+    return $this->hasOne(\App\Modules\Career\Models\ApplicantProfile::class);
+  }
+
   public function orders(): HasMany
   {
     return $this->hasMany(Order::class);

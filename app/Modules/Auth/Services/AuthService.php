@@ -77,7 +77,7 @@ class AuthService
       ]);
     }
 
-    if (! $user->hasVerifiedEmail()) {
+    if (! $user->hasVerifiedEmail() && app()->environment() !== 'local') {
       throw ValidationException::withMessages([
         'email' => ['Email belum diverifikasi. Silakan cek inbox Anda.'],
       ]);

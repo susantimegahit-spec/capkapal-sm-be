@@ -12,21 +12,63 @@ class CareerApplicationService
 {
     // ── Submit (Public) ───────────────────────────────────────────────────────
 
-    public function submit(Career $career, array $data, UploadedFile $resume): CareerApplication
-    {
-        // Upload resume ke local public storage
-        $resumePath = $resume->store(
-            path   : "careers/{$career->id}/resumes",
-            options: 'public'
-        );
+    public function submit(
+        Career $career, 
+        array $data, 
+        ?UploadedFile $resume = null,
+        ?UploadedFile $transcript = null,
+        ?UploadedFile $certificate = null,
+        ?\App\Modules\Auth\Models\User $user = null
+    ): CareerApplication {
+        $profile = $user ? $user->applicantProfile : null;
+        
+        $resumePath = null;
+        $transcriptPath = null;
+        $certificatePath = null;
+
+        if ($user && $career->applications()->where('user_id', $user->id)->exists()) {
+            throw new \Exception('Anda sudah melamar posisi ini.');
+        }
+
+        if ($resume) {
+            $resumePath = $resume->store(path: "careers/{$career->id}/resumes", options: 'public');
+        } elseif ($profile && $profile->cv_path && Storage::disk('public')->exists($profile->cv_path)) {
+            $resumePath = "careers/{$career->id}/resumes/" . uniqid() . "_" . basename($profile->cv_path);
+            Storage::disk('public')->copy($profile->cv_path, $resumePath);
+        }
+
+        if ($transcript) {
+            $transcriptPath = $transcript->store(path: "careers/{$career->id}/transcripts", options: 'public');
+        } elseif ($profile && $profile->transcript_path && Storage::disk('public')->exists($profile->transcript_path)) {
+            $transcriptPath = "careers/{$career->id}/transcripts/" . uniqid() . "_" . basename($profile->transcript_path);
+            Storage::disk('public')->copy($profile->transcript_path, $transcriptPath);
+        }
+
+        if ($certificate) {
+            $certificatePath = $certificate->store(path: "careers/{$career->id}/certificates", options: 'public');
+        } elseif ($profile && $profile->certificate_path && Storage::disk('public')->exists($profile->certificate_path)) {
+            $certificatePath = "careers/{$career->id}/certificates/" . uniqid() . "_" . basename($profile->certificate_path);
+            Storage::disk('public')->copy($profile->certificate_path, $certificatePath);
+        }
 
         return $career->applications()->create([
-            'name'         => $data['name'],
-            'email'        => $data['email'],
-            'phone'        => $data['phone'] ?? null,
-            'cover_letter' => $data['cover_letter'] ?? null,
-            'resume_path'  => $resumePath,
-            'status'       => ApplicationStatus::Pending,
+            'user_id'         => $user?->id,
+            'name'            => $data['name'],
+            'email'           => $data['email'],
+            'phone'           => $data['phone'] ?? null,
+            'nik'             => $data['nik'] ?? null,
+            'gender'          => $data['gender'] ?? null,
+            'education_level' => $data['education_level'] ?? null,
+            'major'           => $data['major'] ?? null,
+            'institution'     => $data['institution'] ?? null,
+            'expected_salary' => $data['expected_salary'] ?? null,
+            'province'        => $data['province'] ?? null,
+            'city'            => $data['city'] ?? null,
+            'cover_letter'    => $data['cover_letter'] ?? null,
+            'resume_path'     => $resumePath,
+            'transcript_path' => $transcriptPath,
+            'certificate_path'=> $certificatePath,
+            'status'          => ApplicationStatus::Pending,
         ]);
     }
 

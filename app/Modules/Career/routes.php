@@ -10,6 +10,20 @@ Route::prefix('careers')->group(function () {
     Route::post('/{slug}/apply', [CareerApplicationController::class, 'store']);
 });
 
+// ── Applicant Protected Routes ────────────────────────────────────────────────
+Route::middleware('auth:sanctum')->prefix('applicant')->group(function () {
+    Route::get('profile', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'show']);
+    Route::put('profile', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'update']);
+    Route::post('profile/cv', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'uploadCv']);
+    Route::delete('profile/cv', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'deleteCv']);
+    
+    Route::post('profile/transcript', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'uploadTranscript']);
+    Route::delete('profile/transcript', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'deleteTranscript']);
+    
+    Route::post('profile/certificate', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'uploadCertificate']);
+    Route::delete('profile/certificate', [\App\Modules\Career\Controllers\ApplicantProfileController::class, 'deleteCertificate']);
+});
+
 // ── Admin routes ──────────────────────────────────────────────────────────────
 Route::middleware(['auth:sanctum', 'role:admin|editor'])->prefix('admin')->group(function () {
     Route::prefix('careers')->group(function () {

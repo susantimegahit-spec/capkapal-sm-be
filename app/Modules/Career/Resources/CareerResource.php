@@ -27,6 +27,12 @@ class CareerResource extends JsonResource
                 $this->applications_count !== null,
                 $this->applications_count
             ),
+            'has_applied' => $this->when(
+                auth('sanctum')->check(),
+                function () {
+                    return $this->applications()->where('user_id', auth('sanctum')->id())->exists();
+                }
+            ),
         ];
     }
 }

@@ -29,8 +29,11 @@ class CareerApplicationController extends Controller
 
         $application = $this->applicationService->submit(
             career: $career,
-            data  : $request->safe()->except('resume'),
+            data  : $request->safe()->except(['resume', 'transcript', 'certificate']),
             resume: $request->file('resume'),
+            transcript: $request->file('transcript'),
+            certificate: $request->file('certificate'),
+            user: $request->user('sanctum')
         );
 
         return $this->created(
