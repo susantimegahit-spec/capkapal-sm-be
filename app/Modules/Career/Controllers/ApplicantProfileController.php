@@ -93,7 +93,9 @@ class ApplicantProfileController extends Controller
         $profile = $user->applicantProfile;
 
         if ($profile && $profile->cv_path) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->cv_path);
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($profile->cv_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->cv_path);
+            }
             
             $profile->update(['cv_path' => null]);
         }
@@ -136,7 +138,9 @@ class ApplicantProfileController extends Controller
         $profile = $user->applicantProfile;
 
         if ($profile && $profile->transcript_path) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->transcript_path);
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($profile->transcript_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->transcript_path);
+            }
             $profile->update(['transcript_path' => null]);
         }
 
@@ -178,7 +182,9 @@ class ApplicantProfileController extends Controller
         $profile = $user->applicantProfile;
 
         if ($profile && $profile->certificate_path) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->certificate_path);
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($profile->certificate_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->certificate_path);
+            }
             $profile->update(['certificate_path' => null]);
         }
 

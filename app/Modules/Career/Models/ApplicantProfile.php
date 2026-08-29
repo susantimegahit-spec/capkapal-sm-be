@@ -34,4 +34,21 @@ class ApplicantProfile extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::deleting(function ($profile) {
+            if ($profile->cv_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($profile->cv_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->cv_path);
+            }
+            if ($profile->transcript_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($profile->transcript_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->transcript_path);
+            }
+            if ($profile->certificate_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($profile->certificate_path)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($profile->certificate_path);
+            }
+        });
+    }
 }
