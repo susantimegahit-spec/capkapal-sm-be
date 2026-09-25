@@ -41,4 +41,8 @@ return [
         'is_production'    => env('MIDTRANS_IS_PRODUCTION', false),
         'notification_url' => env('MIDTRANS_NOTIFICATION_URL', env('APP_URL') . '/api/v1/webhooks/midtrans'),
     ],
+
+    'turnstile' => [
+        'secret' => env('TURNSTILE_SECRET_KEY', '1x0000000000000000000000000000000AA'),
+    ],
 ];
