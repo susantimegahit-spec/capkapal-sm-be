@@ -1,0 +1,24 @@
+services:
+  # Expose database port for local GUI tools (DBeaver, TablePlus)
+  db:
+    ports:
+      - "5432:5432"
+
+  # Expose Redis port for local GUI tools (Medis, Redis Desktop)
+  redis:
+    ports:
+      - "6379:6379"
+
+  # Add a Node container specifically for running Vite (Hot Module Replacement)
+  vite:
+    image: node:20-alpine
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    networks:
+      - garam-network
+    depends_on:
+      - app

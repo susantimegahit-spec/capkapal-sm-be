@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'midtrans' => [
+        'server_key'       => env('MIDTRANS_SERVER_KEY'),
+        'client_key'       => env('MIDTRANS_CLIENT_KEY'),
+        'is_production'    => env('MIDTRANS_IS_PRODUCTION', false),
+        'notification_url' => env('MIDTRANS_NOTIFICATION_URL', env('APP_URL') . '/api/v1/webhooks/midtrans'),
+    ],
+
+    'turnstile' => [
+        'secret' => env('TURNSTILE_SECRET_KEY', '1x0000000000000000000000000000000AA'),
+    ],
 ];

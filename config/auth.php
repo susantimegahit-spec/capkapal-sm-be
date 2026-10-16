@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\User;
+use App\Modules\Auth\Models\User;
 
 return [
 
@@ -16,7 +16,7 @@ return [
     */
 
     'defaults' => [
-        'guard' => env('AUTH_GUARD', 'web'),
+        'guard' => env('AUTH_GUARD', 'api'),
         'passwords' => env('AUTH_PASSWORD_BROKER', 'users'),
     ],
 
@@ -42,6 +42,10 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+        'api' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ]
     ],
 
     /*
@@ -113,5 +117,19 @@ return [
     */
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | The expiry time is the number of minutes that each verification token
+    | will be considered valid.
+    |
+    */
+
+    'verification' => [
+        'expire' => 60,
+    ],
 
 ];
