@@ -47,11 +47,11 @@ jobs:
           if [ "$TARGET" = "production" ]; then
             echo "ENV_NAME=Production" >> $GITHUB_ENV
             echo "TARGET_BRANCH=production" >> $GITHUB_ENV
-            echo "DEPLOY_PATH=${{ secrets.CPANEL_BE_PROD_PATH || '/home/garamcapkapal/be-prod' }}" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=${{ secrets.CPANEL_BE_PROD_PATH || '/home/garamcapkapal/public_html/api.garamcapkapal.com' }}" >> $GITHUB_ENV
           else
             echo "ENV_NAME=Development" >> $GITHUB_ENV
             echo "TARGET_BRANCH=develop" >> $GITHUB_ENV
-            echo "DEPLOY_PATH=${{ secrets.CPANEL_BE_DEV_PATH || '/home/garamcapkapal/be-dev' }}" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=${{ secrets.CPANEL_BE_DEV_PATH || '/home/garamcapkapal/public_html/api-dev.garamcapkapal.com' }}" >> $GITHUB_ENV
           fi
 
       - name: Deploy to cPanel via SSH
