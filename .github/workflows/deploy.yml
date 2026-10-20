@@ -53,6 +53,8 @@ jobs:
             echo "TARGET_BRANCH=develop" >> $GITHUB_ENV
             echo "DEPLOY_PATH=${{ secrets.CPANEL_BE_DEV_PATH || '/home/garamcapkapal/public_html/api-dev.garamcapkapal.com' }}" >> $GITHUB_ENV
           fi
+          echo "REPO=${{ github.repository }}" >> $GITHUB_ENV
+          echo "GH_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
       - name: Deploy to cPanel via SSH
         uses: appleboy/ssh-action@v1.2.0
@@ -63,30 +65,29 @@ jobs:
           passphrase: ${{ secrets.CPANEL_PASSPHRASE || secrets.SSH_PASSPHRASE }}
           password: ${{ secrets.CPANEL_PASSWORD }}
           port: ${{ secrets.CPANEL_PORT || secrets.SSH_PORT || 22 }}
-          envs: TARGET_BRANCH,DEPLOY_PATH,ENV_NAME
+          envs: TARGET_BRANCH,DEPLOY_PATH,ENV_NAME,REPO,GH_TOKEN
           script: |
             set -e
             echo "🚀 [BE] Starting deployment for $ENV_NAME environment (Branch: $TARGET_BRANCH)..."
 
-            # Check if project folder exists
-            if [ ! -d "$DEPLOY_PATH" ]; then
-              echo "❌ Directory $DEPLOY_PATH does not exist on server!"
-              echo "Please clone the repository first into $DEPLOY_PATH:"
-              echo "  git clone https://github.com/${{ github.repository }}.git $DEPLOY_PATH"
-              exit 1
-            fi
-
+            # Ensure project folder exists
+            mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
 
-            # Ensure git repo is configured
+            git config --global --add safe.directory "$DEPLOY_PATH" 2>/dev/null || true
+
+            # Initialize Git if directory is not a git repository yet
             if [ ! -d ".git" ]; then
-              echo "❌ $DEPLOY_PATH is not a Git repository!"
-              exit 1
+              echo "📦 Initializing Git repository in $DEPLOY_PATH..."
+              git init
+              git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+            else
+              git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
             fi
 
             echo "📦 Pulling latest changes from branch $TARGET_BRANCH..."
             git fetch origin "$TARGET_BRANCH"
-            git checkout "$TARGET_BRANCH"
+            git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
             git reset --hard "origin/$TARGET_BRANCH"
 
             # Detect PHP CLI on cPanel (priority: ea-php83, ea-php84, ea-php85, php)
