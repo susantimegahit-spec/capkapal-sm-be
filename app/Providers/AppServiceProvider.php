@@ -36,10 +36,11 @@ class AppServiceProvider extends ServiceProvider
         );
 
         // ── Slow Query Logger ─────────────────────────────────────────
-        if (config('app.debug')) {
+        if (config('app.debug') && !app()->runningInConsole()) {
             DB::whenQueryingForLongerThan(500, function ($connection) {
                 Log::warning('Slow query detected', [
-                    'sql' => $connection->lastQueryLog(),
+                    'connection' => $connection->getName(),
+                    'total_duration_ms' => $connection->totalQueryDuration(),
                 ]);
             });
         }
