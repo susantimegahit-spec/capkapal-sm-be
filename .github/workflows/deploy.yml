@@ -90,6 +90,9 @@ jobs:
             git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH" --force
             git reset --hard "origin/$TARGET_BRANCH"
 
+            # Remove all .md files from server
+            find . -maxdepth 3 -name "*.md" -delete 2>/dev/null || true
+
             # Detect PHP CLI on cPanel (priority: ea-php83, ea-php84, ea-php85, php)
             PHP_BIN=$(which ea-php83 2>/dev/null || which ea-php84 2>/dev/null || which ea-php85 2>/dev/null || which php)
             echo "🐘 Using PHP: $PHP_BIN ($($PHP_BIN -v | head -n 1))"

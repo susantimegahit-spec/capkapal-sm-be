@@ -1,6 +1,9 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Block access to markdown files
+    RewriteRule \.md$ - [F,L,NC]
+
     # Do not rewrite if already pointing to public
     RewriteCond %{REQUEST_URI} !^/public/
     RewriteRule ^(.*)$ public/$1 [L]
