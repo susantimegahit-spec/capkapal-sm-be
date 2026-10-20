@@ -97,9 +97,9 @@ jobs:
             # Run composer install
             echo "📥 Installing Composer dependencies..."
             if [ -f "/usr/local/bin/composer-original" ]; then
-              $PHP_BIN /usr/local/bin/composer-original install --no-dev --optimize-autoloader --no-interaction
+              $PHP_BIN /usr/local/bin/composer-original install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs
             else
-              composer install --no-dev --optimize-autoloader --no-interaction
+              composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs
             fi
 
             # Ensure .env exists
