@@ -1,46 +1,116 @@
-name: Deploy to aaPanel
+# =============================================================================
+# Deploy Backend (Laravel) to cPanel Server
+# Triggers: Push to develop (Dev) or production (Prod), or Manual Dispatch
+# =============================================================================
+
+name: Deploy Backend to cPanel
 
 on:
   push:
     branches:
-      - develop # Changed to develop based on the recent commit branch
+      - develop
+      - production
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: 'Target Environment'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - develop
+          - production
+
+concurrency:
+  group: deploy-be-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    name: Deploy to cPanel Server
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Deploy to Server via SSH
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USERNAME }}
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        port: ${{ secrets.SERVER_PORT }}
-        script: |
-          # Go to the application directorFy
-          cd /www/wwwroot/api-garamcapkapal.thoriqagfi.com
+      - name: Determine Deployment Target
+        id: target
+        run: |
+          REF_BRANCH="${{ github.ref_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.target_env }}" != "auto" ]; then
+            TARGET="${{ inputs.target_env }}"
+          else
+            TARGET="$REF_BRANCH"
+          fi
 
-          # Pull the latest changes from the repository
-          git pull origin develop
+          if [ "$TARGET" = "production" ]; then
+            echo "ENV_NAME=Production" >> $GITHUB_ENV
+            echo "TARGET_BRANCH=production" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=${{ secrets.CPANEL_BE_PROD_PATH || '/home/garamcapkapal/be-prod' }}" >> $GITHUB_ENV
+          else
+            echo "ENV_NAME=Development" >> $GITHUB_ENV
+            echo "TARGET_BRANCH=develop" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=${{ secrets.CPANEL_BE_DEV_PATH || '/home/garamcapkapal/be-dev' }}" >> $GITHUB_ENV
+          fi
 
-          # Build the Docker image (for app, horizon, scheduler)
-          docker compose build
+      - name: Deploy to cPanel via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.CPANEL_HOST || secrets.SSH_HOST || '163.61.58.29' }}
+          username: ${{ secrets.CPANEL_USER || secrets.SSH_USERNAME || 'garamcapkapal' }}
+          key: ${{ secrets.CPANEL_SSH_KEY || secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.CPANEL_PASSPHRASE || secrets.SSH_PASSPHRASE }}
+          password: ${{ secrets.CPANEL_PASSWORD }}
+          port: ${{ secrets.CPANEL_PORT || secrets.SSH_PORT || 22 }}
+          envs: TARGET_BRANCH,DEPLOY_PATH,ENV_NAME
+          script: |
+            set -e
+            echo "🚀 [BE] Starting deployment for $ENV_NAME environment (Branch: $TARGET_BRANCH)..."
 
-          # Start or update the containers in detached mode
-          docker compose up -d
+            # Check if project folder exists
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "❌ Directory $DEPLOY_PATH does not exist on server!"
+              echo "Please clone the repository first into $DEPLOY_PATH:"
+              echo "  git clone https://github.com/${{ github.repository }}.git $DEPLOY_PATH"
+              exit 1
+            fi
 
-          # Run database migrations inside the running 'app' container
-          docker compose exec -T app php artisan migrate --force
+            cd "$DEPLOY_PATH"
 
-          # Clear and cache routes, config, and views
-          docker compose exec -T app php artisan optimize:clear
-          docker compose exec -T app php artisan config:cache
-          docker compose exec -T app php artisan route:cache
-          docker compose exec -T app php artisan view:cache
+            # Ensure git repo is configured
+            if [ ! -d ".git" ]; then
+              echo "❌ $DEPLOY_PATH is not a Git repository!"
+              exit 1
+            fi
 
-          # Restart horizon via its dedicated container or using the command
-          docker compose exec -T app php artisan horizon:terminate
+            echo "📦 Pulling latest changes from branch $TARGET_BRANCH..."
+            git fetch origin "$TARGET_BRANCH"
+            git checkout "$TARGET_BRANCH"
+            git reset --hard "origin/$TARGET_BRANCH"
+
+            # Detect PHP CLI on cPanel (priority: ea-php83, ea-php84, ea-php85, php)
+            PHP_BIN=$(which ea-php83 2>/dev/null || which ea-php84 2>/dev/null || which ea-php85 2>/dev/null || which php)
+            echo "🐘 Using PHP: $PHP_BIN ($($PHP_BIN -v | head -n 1))"
+
+            # Run composer install
+            echo "📥 Installing Composer dependencies..."
+            $PHP_BIN $(which composer) install --no-dev --optimize-autoloader --no-interaction
+
+            # Run database migrations
+            echo "🗄️ Running migrations..."
+            $PHP_BIN artisan migrate --force
+
+            # Optimize & cache
+            echo "⚡ Clearing and caching configuration..."
+            $PHP_BIN artisan optimize:clear
+            $PHP_BIN artisan config:cache
+            $PHP_BIN artisan route:cache
+            $PHP_BIN artisan view:cache
+            $PHP_BIN artisan event:cache 2>/dev/null || true
+
+            # Restart queues/workers
+            echo "🔄 Restarting queue workers..."
+            $PHP_BIN artisan queue:restart || true
+
+            echo "✅ [BE] $ENV_NAME deployment successfully finished!"
